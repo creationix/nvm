@@ -962,6 +962,7 @@ nvm_get_os() {
     Darwin\ *) NVM_OS=darwin ;;
     SunOS\ *) NVM_OS=sunos ;;
     FreeBSD\ *) NVM_OS=freebsd ;;
+    OpenBSD\ *) NVM_OS=openbsd ;;
   esac
   echo "$NVM_OS"
 }
@@ -1268,7 +1269,7 @@ nvm_get_make_jobs() {
   local NVM_CPU_THREADS
   if [ "_$NVM_OS" = "_linux" ]; then
     NVM_CPU_THREADS="$(grep -c 'core id' /proc/cpuinfo)"
-  elif [ "_$NVM_OS" = "_freebsd" ] || [ "_$NVM_OS" = "_darwin" ]; then
+  elif [ "_$NVM_OS" = "_freebsd" ] || [ "_$NVM_OS" = "_darwin" ] || [ "_$NVM_OS" = "_openbsd" ]; then
     NVM_CPU_THREADS="$(sysctl -n hw.ncpu)"
   elif [ "_$NVM_OS" = "_sunos" ]; then
     NVM_CPU_THREADS="$(psrinfo | wc -l)"
@@ -1318,7 +1319,7 @@ nvm_install_node_source() {
   sum=''
   local make
   make='make'
-  if [ "_$NVM_OS" = "_freebsd" ]; then
+  if [ "_$NVM_OS" = "_freebsd" ] || [ "_$NVM_OS" = "_openbsd" ]; then
     make='gmake'
     MAKE_CXX="CXX=c++"
   fi
@@ -1734,8 +1735,8 @@ nvm() {
         return $?
       fi
 
-      if [ "_$NVM_OS" = "_freebsd" ]; then
-        # node.js and io.js do not have a FreeBSD binary
+      if [ "_$NVM_OS" = "_freebsd" ] || [ "_$NVM_OS" = "_openbsd" ]; then
+        # node.js and io.js do not have a FreeBSD or OpenBSD binary
         nobinary=1
         echo "Currently, there is no binary for $NVM_OS" >&2
       elif [ "_$NVM_OS" = "_sunos" ]; then
