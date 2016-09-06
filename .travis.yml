@@ -1,42 +1,70 @@
-language: c # defaults to ruby
+language: generic
+sudo: required
 addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - gcc-4.8
+      - g++-4.8
   apt_packages:
-  - zsh
-  - ksh
+    - zsh
+    - ksh
+cache:
+  directories:
+    - $HOME/.stack
+    - $TRAVIS_BUILD_DIR/.cache
 before_install:
+  - $SHELL --version 2> /dev/null || dpkg -s $SHELL 2> /dev/null || which $SHELL
   - curl --version
   - wget --version
+  - if [ -n "${SHELLCHECK-}" ]; then sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 575159689BEFB442 && echo 'deb http://download.fpcomplete.com/ubuntu precise main' | sudo tee /etc/apt/sources.list.d/fpco.list && sudo apt-get update && sudo apt-get install stack bc -y && stack setup && stack install ShellCheck && shellcheck --version ; fi
 install:
   - (mkdir /tmp/urchin && cd /tmp/urchin && curl -s "$(curl -s https://registry.npmjs.com/urchin | grep -Eo '"tarball":\s*"[^"]+"' | tail -n 1 | awk -F\" '{ print $4 }')" -O && tar -x -f urchin*)
   - chmod +x /tmp/urchin/package/urchin
   - '[ -z "$WITHOUT_CURL" ] || sudo apt-get remove curl -y'
 script:
+  - export CXX=g++-4.8
+  - export CC=gcc-4.8
   - export PATH=$(echo $PATH | sed 's/::/:/')
-  - NVM_DIR=$TRAVIS_BUILD_DIR make TEST_SUITE=$TEST_SUITE URCHIN=/tmp/urchin/package/urchin test-$SHELL
+  - export NVM_DIR="${TRAVIS_BUILD_DIR}"
+  - if [ -n "${SHELLCHECK-}" ]; then shellcheck -s bash nvm.sh && shellcheck -s sh nvm.sh && shellcheck -s dash nvm.sh && shellcheck -s ksh nvm.sh && shellcheck -s bash install.sh ; fi
+  - if [ -z "${SHELLCHECK-}" ]; then make TEST_SUITE=$TEST_SUITE URCHIN=/tmp/urchin/package/urchin test-$SHELL ; fi
 env:
+  - SHELLCHECK=true
   - SHELL=bash TEST_SUITE=install_script
   - SHELL=sh TEST_SUITE=fast
   - SHELL=dash TEST_SUITE=fast
   - SHELL=bash TEST_SUITE=fast
   - SHELL=zsh TEST_SUITE=fast
 #  - SHELL=ksh TEST_SUITE=fast
-  - SHELL=sh TEST_SUITE=slow
-  - SHELL=dash TEST_SUITE=slow
-  - SHELL=bash TEST_SUITE=slow
-  - SHELL=zsh TEST_SUITE=slow
-#  - SHELL=ksh TEST_SUITE=slow
   - SHELL=sh TEST_SUITE=sourcing
   - SHELL=dash TEST_SUITE=sourcing
   - SHELL=bash TEST_SUITE=sourcing
   - SHELL=zsh TEST_SUITE=sourcing
 #  - SHELL=ksh TEST_SUITE=sourcing
-  - SHELL=sh TEST_SUITE=installation
-#  - SHELL=sh TEST_SUITE=installation WITHOUT_CURL=1
-  - SHELL=dash TEST_SUITE=installation
-#  - SHELL=dash TEST_SUITE=installation WITHOUT_CURL=1
-  - SHELL=bash TEST_SUITE=installation
-#  - SHELL=bash TEST_SUITE=installation WITHOUT_CURL=1
-  - SHELL=zsh TEST_SUITE=installation
-#  - SHELL=zsh TEST_SUITE=installation WITHOUT_CURL=1
-#  - SHELL=ksh TEST_SUITE=installation
-#  - SHELL=ksh TEST_SUITE=installation WITHOUT_CURL=1
+  - SHELL=sh TEST_SUITE=slow
+  - SHELL=dash TEST_SUITE=slow
+  - SHELL=bash TEST_SUITE=slow
+  - SHELL=zsh TEST_SUITE=slow
+#  - SHELL=ksh TEST_SUITE=slow
+  - SHELL=sh TEST_SUITE=installation_node
+#  - SHELL=sh TEST_SUITE=installation_node WITHOUT_CURL=1
+  - SHELL=dash TEST_SUITE=installation_node
+#  - SHELL=dash TEST_SUITE=installation_node WITHOUT_CURL=1
+  - SHELL=bash TEST_SUITE=installation_node
+#  - SHELL=bash TEST_SUITE=installation_node WITHOUT_CURL=1
+  - SHELL=zsh TEST_SUITE=installation_node
+#  - SHELL=zsh TEST_SUITE=installation_node WITHOUT_CURL=1
+#  - SHELL=ksh TEST_SUITE=installation_node
+#  - SHELL=ksh TEST_SUITE=installation_node WITHOUT_CURL=1
+  - SHELL=sh TEST_SUITE=installation_iojs
+#  - SHELL=sh TEST_SUITE=installation_iojs WITHOUT_CURL=1
+  - SHELL=dash TEST_SUITE=installation_iojs
+#  - SHELL=dash TEST_SUITE=installation_iojs WITHOUT_CURL=1
+  - SHELL=bash TEST_SUITE=installation_iojs
+#  - SHELL=bash TEST_SUITE=installation_iojs WITHOUT_CURL=1
+  - SHELL=zsh TEST_SUITE=installation_iojs
+#  - SHELL=zsh TEST_SUITE=installation_iojs WITHOUT_CURL=1
+#  - SHELL=ksh TEST_SUITE=installation_iojs
+#  - SHELL=ksh TEST_SUITE=installation_iojs WITHOUT_CURL=1
