@@ -23,6 +23,28 @@
  - [Installing nvm on Alpine Linux](#installing-nvm-on-alpine-linux)
  - [Problems](#problems)
 
+## Intro
+
+NVM allows you to quickly install and use different versions of node via the command line.
+
+**Example:**
+```sh
+$ nvm use 6
+Now using node v6.5.0 (npm v3.10.3)
+$ node -v
+v6.5.0
+$ nvm use 4
+Now using node v4.4.4 (npm v3.10.10)
+$ node -v
+v4.4.4
+$ nvm install 7
+Now using node v7.2.0 (npm v3.10.9)
+$ node -v
+v7.2.0
+```
+
+Simple as that!
+
 ## Installation
 
 First you'll need to make sure your system has a c++ compiler. For OS X, Xcode will work, for Ubuntu, the `build-essential` and `libssl-dev` packages work.
@@ -42,7 +64,8 @@ First you'll need to make sure your system has a c++ compiler. For OS X, Xcode w
  - [[#900] [Bug] nodejs on FreeBSD need to be patched ](https://github.com/creationix/nvm/issues/900)
  - [nodejs/node#3716](https://github.com/nodejs/node/issues/3716)
 
-**Note:** On OS X, if you do not have Xcode installed and you do not wish to download the ~4.3GB file, you can install the `Command Line Tools`. You can check out this blog post on how to just that:
+**Note:** On OS X, if you do not have Xcode installed and you do not wish to download the ~4.3GB file, you can install the `
+Line Tools`. You can check out this blog post on how to just that:
  - [How to Install Command Line Tools in OS X Mavericks & Yosemite (Without Xcode)](http://osxdaily.com/2014/02/12/install-command-line-tools-mac-os-x/)
 
 **Note:** On OS X, if you have/had a "system" node installed and want to install modules globally, keep in mind that:
