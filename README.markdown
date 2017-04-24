@@ -100,7 +100,7 @@ If the above doesn't fix the problem, open your `.bash_profile` and add the foll
 
 ### Verify installation
 
-To verify that nvm has been installed, do:
+After restarting your terminal, to verify that nvm has been installed, do:
 
 ```sh
 command -v nvm
