@@ -341,9 +341,9 @@ You can use [`avn`](https://github.com/wbyoung/avn) to deeply integrate into you
 
 If you prefer a lighter-weight solution, the recipes below have been contributed by `nvm` users. They are **not** supported by the `nvm` development team. We are, however, accepting pull requests for more examples.
 
-#### zsh
+#### Calling `nvm use` automatically in a directory with a `.nvmrc` file
 
-##### Calling `nvm use` automatically in a directory with a `.nvmrc` file
+##### zsh
 
 Put this into your `$HOME/.zshrc` to call `nvm use` automatically whenever you enter a directory that contains an
 `.nvmrc` file with a string telling nvm which node to `use`:
@@ -370,6 +370,23 @@ load-nvmrc() {
 }
 add-zsh-hook chpwd load-nvmrc
 load-nvmrc
+```
+
+##### bash
+
+Put this into `$HOME/.bashrc` (or `$HOME/.bash_profile`, or whatever you use) to override the `cd` command to mimic the above zsh-hook:
+
+```bash
+# place this after nvm initialization!
+load-nvmrc() {
+  # same definition as zsh-hook
+}
+load-nvmrc
+
+cd() {
+   builtin cd "$1"
+   load-nvmrc
+}
 ```
 
 ## License
