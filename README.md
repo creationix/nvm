@@ -20,8 +20,9 @@
   - [Listing versions](#listing-versions)
   - [.nvmrc](#nvmrc)
   - [Deeper Shell Integration](#deeper-shell-integration)
-    - [zsh](#zsh)
-      - [Calling `nvm use` automatically in a directory with a `.nvmrc` file](#calling-nvm-use-automatically-in-a-directory-with-a-nvmrc-file)
+    - [Calling `nvm use` automatically in a directory with a `.nvmrc` file](#calling-nvm-use-automatically-in-a-directory-with-a-nvmrc-file)
+      - [zsh](#zsh)
+      - [other shells (e.g. bash)](#other-shells-eg-bash)
 - [License](#license)
 - [Running tests](#running-tests)
 - [Bash completion](#bash-completion)
@@ -343,14 +344,9 @@ If you prefer a lighter-weight solution, the recipes below have been contributed
 
 #### Calling `nvm use` automatically in a directory with a `.nvmrc` file
 
-##### zsh
+This shell function will install (if needed) and `nvm use` the specified Node version when an `.nvmrc` is found, and `nvm use default` otherwise.
 
-Put this into your `$HOME/.zshrc` to call `nvm use` automatically whenever you enter a directory that contains an
-`.nvmrc` file with a string telling nvm which node to `use`:
-
-```zsh
-# place this after nvm initialization!
-autoload -U add-zsh-hook
+```sh
 load-nvmrc() {
   local node_version="$(nvm version)"
   local nvmrc_path="$(nvm_find_nvmrc)"
@@ -368,25 +364,27 @@ load-nvmrc() {
     nvm use default
   fi
 }
+```
+
+In your profile (`~/.bash_profile`, `~/.zshrc`, `~/.profile`, or `~/.bashrc`), add `load-nvmrc` along with one of the following hook listeners to call `load-nvmrc` whenever you enter a new directory:
+
+##### zsh
+
+```zsh
+autoload -U add-zsh-hook
 add-zsh-hook chpwd load-nvmrc
 load-nvmrc
 ```
 
-##### bash
+##### other shells (e.g. bash)
 
-Put this into `$HOME/.bashrc` (or `$HOME/.bash_profile`, or whatever you use) to override the `cd` command to mimic the above zsh-hook:
-
-```bash
-# place this after nvm initialization!
-load-nvmrc() {
-  # same definition as zsh-hook
-}
-load-nvmrc
-
+```sh
+# note: overrides the `cd` command
 cd() {
    builtin cd "$1"
    load-nvmrc
 }
+load-nvmrc
 ```
 
 ## License
