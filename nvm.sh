@@ -274,37 +274,43 @@ nvm_tree_contains_path() {
 # Traverse up in directory tree to find containing folder
 nvm_find_up() {
   local path
+  local file
   path="${PWD}"
-  while [ "${path}" != "" ] && [ ! -f "${path}/${1-}" ]; do
-    path=${path%/*}
-  done
-  nvm_echo "${path}"
-}
 
+  # Iterate through the multiple files
+  while [ $# -ne 0 ]; do
+    # Look for files in turn in this path
+    while [ "${path}" != "" ]; do
+      # Is the file here?
+      if [ ! -f "${path}/${1}" ]; then
+        file="${path}/${1}"
+        nvm_echo $file
+        break 2
+      fi
+    done
+    shift
+  done
+}
 
 nvm_find_nvmrc() {
-  local dir
-  dir="$(nvm_find_up '.nvmrc')"
-  if [ -e "${dir}/.nvmrc" ]; then
-    nvm_echo "${dir}/.nvmrc"
-  fi
+  nvm_echo "$(nvm_find_up '.nvmrc' '.node-version')"
 }
 
-# Obtain nvm version from rc file
 nvm_rc_version() {
   export NVM_RC_VERSION=''
   local NVMRC_PATH
   NVMRC_PATH="$(nvm_find_nvmrc)"
   if [ ! -e "${NVMRC_PATH}" ]; then
-    nvm_err "No .nvmrc file found"
+    nvm_err "No .nvmrc or .node-version file found"
     return 1
   fi
+  NVMRC_BASENAME="$(command basename "$NVMRC_PATH")"
   read -r NVM_RC_VERSION < "${NVMRC_PATH}" || printf ''
   if [ ! -n "${NVM_RC_VERSION}" ]; then
-    nvm_err "Warning: empty .nvmrc file found at \"${NVMRC_PATH}\""
+    nvm_err "Warning: empty \"${NVMRC_BASENAME}\" file found at \"${NVMRC_PATH}\""
     return 2
   fi
-  nvm_echo "Found '${NVMRC_PATH}' with version <${NVM_RC_VERSION}>"
+  nvm_echo "Found \"${NVMRC_BASENAME}\" with version <${NVM_RC_VERSION}>"
 }
 
 nvm_clang_version() {
