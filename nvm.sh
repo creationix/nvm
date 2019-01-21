@@ -2507,54 +2507,75 @@ nvm() {
       local LTS
       local NVM_UPGRADE_NPM
       NVM_UPGRADE_NPM=0
+      local PROVIDED_REINSTALL_PACKAGES_FROM
+      local REINSTALL_PACKAGES_FROM
+      local SKIP_DEFAULT_PACKAGES
+      local DEFAULT_PACKAGES
+
+      local provided_version=''
+      ADDITIONAL_PARAMETERS=''
+
       while [ $# -ne 0 ]
       do
         case "$1" in
           -s)
-            shift # consume "-s"
             nobinary=1
           ;;
           -j)
-            shift # consume "-j"
-            nvm_get_make_jobs "$1"
-            shift # consume job count
+            shift # 2 part parameter, comsume first part now
+            nvm_get_make_jobs "$1" # $1 is now second parameter piece
           ;;
           --no-progress)
             noprogress=1
-            shift
           ;;
           --lts)
             LTS='*'
-            shift
           ;;
           --lts=*)
             LTS="${1##--lts=}"
-            shift
           ;;
           --latest-npm)
             NVM_UPGRADE_NPM=1
-            shift
+          ;;
+          --reinstall-packages-from=*)
+            PROVIDED_REINSTALL_PACKAGES_FROM="${1##--reinstall-packages-from=}"
+            if [ -z "${PROVIDED_REINSTALL_PACKAGES_FROM}" ]; then
+              nvm_err 'If --reinstall-packages-from is provided, it must point to an installed version of node.'
+              return 6
+            fi
+            REINSTALL_PACKAGES_FROM="$(nvm_version "$PROVIDED_REINSTALL_PACKAGES_FROM")" ||:
+          ;;
+          --reinstall-packages-from)
+            nvm_err 'If --reinstall-packages-from is provided, it must point to an installed version of node using `=`.'
+            return 6
+          ;;
+          --copy-packages-from=*)
+            PROVIDED_REINSTALL_PACKAGES_FROM="${1##--copy-packages-from=}"
+            REINSTALL_PACKAGES_FROM="$(nvm_version "$PROVIDED_REINSTALL_PACKAGES_FROM")" ||:
+          ;;
+          --copy-packages-from)
+            nvm_err 'If --copy-packages-from is provided, it must point to an installed version of node using `=`.'
+            return 6
+          ;;
+          --skip-default-packages)
+            SKIP_DEFAULT_PACKAGES=true
           ;;
           *)
-            break # stop parsing args
+            if [ -z "$provided_version" ]; then
+              provided_version="$1"
+            else
+              ADDITIONAL_PARAMETERS="$ADDITIONAL_PARAMETERS $1" # gather all other parameters
+            fi
           ;;
         esac
+        shift # consume parameter
       done
-
-      local provided_version
-      provided_version="${1-}"
 
       if [ -z "$provided_version" ]; then
         if [ "_${LTS-}" = '_*' ]; then
           nvm_echo 'Installing latest LTS version.'
-          if [ $# -gt 0 ]; then
-            shift
-          fi
         elif [ "_${LTS-}" != '_' ]; then
           nvm_echo "Installing with latest version of LTS line: $LTS"
-          if [ $# -gt 0 ]; then
-            shift
-          fi
         else
           nvm_rc_version
           if [ $version_not_provided -eq 1 ] && [ -z "$NVM_RC_VERSION" ]; then
@@ -2565,8 +2586,6 @@ nvm() {
           provided_version="$NVM_RC_VERSION"
           unset NVM_RC_VERSION
         fi
-      elif [ $# -gt 0 ]; then
-        shift
       fi
 
       case "${provided_version}" in
@@ -2597,41 +2616,6 @@ nvm() {
         nvm_err "Version '$provided_version' ${LTS_MSG-}not found - try \`${REMOTE_CMD}\` to browse available versions."
         return 3
       fi
-
-      ADDITIONAL_PARAMETERS=''
-      local PROVIDED_REINSTALL_PACKAGES_FROM
-      local REINSTALL_PACKAGES_FROM
-      local SKIP_DEFAULT_PACKAGES
-      local DEFAULT_PACKAGES
-
-      while [ $# -ne 0 ]
-      do
-        case "$1" in
-          --reinstall-packages-from=*)
-            PROVIDED_REINSTALL_PACKAGES_FROM="$(nvm_echo "$1" | command cut -c 27-)"
-            if [ -z "${PROVIDED_REINSTALL_PACKAGES_FROM}" ]; then
-              nvm_err 'If --reinstall-packages-from is provided, it must point to an installed version of node.'
-              return 6
-            fi
-            REINSTALL_PACKAGES_FROM="$(nvm_version "$PROVIDED_REINSTALL_PACKAGES_FROM")" ||:
-          ;;
-          --reinstall-packages-from)
-            nvm_err 'If --reinstall-packages-from is provided, it must point to an installed version of node using `=`.'
-            return 6
-          ;;
-          --copy-packages-from=*)
-            PROVIDED_REINSTALL_PACKAGES_FROM="$(nvm_echo "$1" | command cut -c 22-)"
-            REINSTALL_PACKAGES_FROM="$(nvm_version "$PROVIDED_REINSTALL_PACKAGES_FROM")" ||:
-          ;;
-          --skip-default-packages)
-            SKIP_DEFAULT_PACKAGES=true
-          ;;
-          *)
-            ADDITIONAL_PARAMETERS="$ADDITIONAL_PARAMETERS $1"
-          ;;
-        esac
-        shift
-      done
 
       if [ -z "${SKIP_DEFAULT_PACKAGES-}" ] && [ -f "${NVM_DIR}/default-packages" ]; then
         DEFAULT_PACKAGES=""
