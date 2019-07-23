@@ -1,6 +1,6 @@
 {
   "name": "nvm",
-  "version": "0.33.8",
+  "version": "0.34.0",
   "description": "Node Version Manager - Simple bash script to manage multiple active node.js versions",
   "directories": {
     "test": "test"
@@ -14,11 +14,13 @@
     "test/installation/node": "shell=$(basename -- $(ps -o comm= $(ps -o ppid= -p $PPID)) | sed 's/^-//'); make TEST_SUITE=installation_node test-$shell",
     "test/installation/iojs": "shell=$(basename -- $(ps -o comm= $(ps -o ppid= -p $PPID)) | sed 's/^-//'); make TEST_SUITE=installation_iojs test-$shell",
     "test/sourcing": "shell=$(basename -- $(ps -o comm= $(ps -o ppid= -p $PPID)) | sed 's/^-//'); make TEST_SUITE=sourcing test-$shell",
-    "doctoc": "doctoc --title='## Table of Contents' --github README.md"
+    "doctoc": "doctoc --title='## Table of Contents' --github README.md",
+    "eclint": "eclint check $(git ls-tree --name-only HEAD | xargs)",
+    "dockerfile_lint": "dockerfile_lint"
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/creationix/nvm.git"
+    "url": "git://github.com/nvm-sh/nvm.git"
   },
   "keywords": [
     "nvm",
@@ -30,10 +32,12 @@
   "author": "Tim Caswell <tim@creationix.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/creationix/nvm/issues"
+    "url": "https://github.com/nvm-sh/nvm/issues"
   },
-  "homepage": "https://github.com/creationix/nvm",
+  "homepage": "https://github.com/nvm-sh/nvm",
   "devDependencies": {
+    "dockerfile_lint": "^0.3.2",
+    "eclint": "^2.6.0",
     "replace": "^0.3.0",
     "semver": "^5.0.1",
     "urchin": "^0.0.5",
