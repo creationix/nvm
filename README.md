@@ -113,6 +113,9 @@ command -v nvm
 ```
 
 which should output 'nvm' if the installation was successful. Please note that `which nvm` will not work, since `nvm` is a sourced shell function, not an executable binary.
+ 
+**Note:** Please note that if nvm is not outputted or with the error `nvm: command not found`, you might want to restart the bash and try it in a fresh bash terminal again, since there are a few variables exported which need to be initialized in a fresh bash.
+ 
 
 ### Important Notes
 
