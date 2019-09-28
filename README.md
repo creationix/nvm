@@ -16,7 +16,6 @@
   - [Long-term support](#long-term-support)
   - [Migrating global packages while installing](#migrating-global-packages-while-installing)
   - [Default global packages from file while installing](#default-global-packages-from-file-while-installing)
-  - [io.js](#iojs)
   - [System version of node](#system-version-of-node)
   - [Listing versions](#listing-versions)
     - [Suppressing colorized output](#suppressing-colorized-output)
@@ -116,7 +115,7 @@ which should output 'nvm' if the installation was successful. Please note that `
 
 ### Important Notes
 
-If you're running a system without prepackaged binary available, which means you're going to install nodejs or io.js from its source code, you need to make sure your system has a C++ compiler. For OS X, Xcode will work, for Debian/Ubuntu based GNU/Linux, the `build-essential` and `libssl-dev` packages work.
+If you're running a system without prepackaged binary available, which means you're going to install nodejs from its source code, you need to make sure your system has a C++ compiler. For OS X, Xcode will work, for Debian/Ubuntu based GNU/Linux, the `build-essential` and `libssl-dev` packages work.
 
 **Note:** `nvm` does not support Windows (see [#284](https://github.com/nvm-sh/nvm/issues/284)), but may work in WSL (Windows Subsystem for Linux) depending on the version of WSL. For Windows, two alternatives exist, which are neither supported nor developed by us:
 
@@ -256,7 +255,6 @@ nvm which 5.0
 In place of a version pointer like "0.10" or "5.0" or "4.2.1", you can use the following special default aliases with `nvm install`, `nvm use`, `nvm run`, `nvm exec`, `nvm which`, etc:
 
   - `node`: this installs the latest version of [`node`](https://nodejs.org/en/)
-  - `iojs`: this installs the latest version of [`io.js`](https://iojs.org/en/)
   - `stable`: this alias is deprecated, and only truly applies to `node` `v0.12` and earlier. Currently, this is an alias for `node`.
   - `unstable`: this alias points to `node` `v0.11` - the last "unstable" node release, since post-1.0, all node versions are stable. (in SemVer, versions communicate breakage, not stability).
 
@@ -288,7 +286,6 @@ You can also install and migrate npm packages from specific versions of Node lik
 
 ```sh
 nvm install 6 --reinstall-packages-from=5
-nvm install v4.2 --reinstall-packages-from=iojs
 ```
 
 Note that reinstalling packages _explicitly does not update the npm version_ — this is to ensure that npm isn't accidentally upgraded to a broken version for the new node version.
@@ -318,22 +315,6 @@ rimraf
 object-inspect@1.0.2
 stevemao/left-pad
 ```
-
-### io.js
-
-If you want to install [io.js](https://github.com/iojs/io.js/):
-
-```sh
-nvm install iojs
-```
-
-If you want to install a new version of io.js and migrate npm packages from a previous version:
-
-```sh
-nvm install iojs --reinstall-packages-from=iojs
-```
-
-The same guidelines mentioned for migrating npm packages in Node.js are applicable to io.js.
 
 ### System version of node
 
@@ -386,15 +367,6 @@ export NVM_NODEJS_ORG_MIRROR=https://nodejs.org/dist
 nvm install node
 
 NVM_NODEJS_ORG_MIRROR=https://nodejs.org/dist nvm install 4.2
-```
-
-To use a mirror of the io.js binaries, set `$NVM_IOJS_ORG_MIRROR`:
-
-```sh
-export NVM_IOJS_ORG_MIRROR=https://iojs.org/dist
-nvm install iojs-v1.0.3
-
-NVM_IOJS_ORG_MIRROR=https://iojs.org/dist nvm install iojs-v1.0.3
 ```
 
 `nvm use` will not, by default, create a "current" symlink. Set `$NVM_SYMLINK_CURRENT` to "true" to enable this behavior, which is sometimes useful for IDEs. Note that using `nvm` in multiple shell tabs with this environment variable enabled can cause race conditions.
