@@ -1,4 +1,7 @@
 #!/bin/sh
 
-. ../../nvm.sh
+set -ex
+
+\. ../../nvm.sh
+
 nvm
