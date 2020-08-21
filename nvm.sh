@@ -2225,6 +2225,7 @@ nvm_die_on_prefix() {
         nvm_err "Make sure your username ($(whoami)) matches the one in your \$HOME path."
         nvm_err "See the \"macOS Troubleshooting\" section in the docs for more information."
       fi
+      nvm_err "If \"$NVM_NPM_PREFIX\" is actually inside \"$NVM_DIR\" directory, please modify your NVM_DIR to make sure there is no any symbolic links."
       return 10
     fi
   fi
