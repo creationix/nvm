@@ -1760,6 +1760,7 @@ nvm_get_os() {
     Darwin\ *) NVM_OS=darwin ;;
     SunOS\ *) NVM_OS=sunos ;;
     FreeBSD\ *) NVM_OS=freebsd ;;
+    OpenBSD\ *) NVM_OS=openbsd ;;
     AIX\ *) NVM_OS=aix ;;
   esac
   nvm_echo "${NVM_OS-}"
@@ -1916,7 +1917,7 @@ nvm_install_binary() {
   fi
   local tar
   tar='tar'
-  if [ "${NVM_OS}" = 'aix' ]; then
+  if [ "${NVM_OS}" = 'aix' ] || [ "${NVM_OS}" = 'openbsd' ]; then
     tar='gtar'
   fi
   if (
@@ -2091,6 +2092,69 @@ nvm_download_artifact() {
   nvm_echo "${TARBALL}"
 }
 
+nvm_tar_knows_J() {
+  ERR_MSG=$(tar -J 2>&1 | head -1)
+  [ "_$ERR_MSG" != "_tar: unknown option -- J" ]
+}
+
+
+# args: tarball path, NVM_OS var
+# returns: a string with the path of the extracted compressed file
+nvm_extract_tar_artifact() {
+  local tar_compression_flag
+  local TARBALL
+  local TAR_COMMAND_SUFFIX
+  local TMPDIR
+  local NVM_OS
+  local tar
+
+  TARBALL="${1}"
+  NVM_OS="${2}"
+
+  tar='tar'
+  if [ "${NVM_OS}" = 'aix' ]; then
+    tar='gtar'
+  fi
+
+  tar_compression_flag='z'
+
+  if ! nvm_tar_knows_J && nvm_has xz && nvm_supports_xz "${VERSION}"; then
+
+    if [ -f "${TARBALL}" ]; then
+      command xz -dk "${TARBALL}"
+    fi
+
+    TARBALL=${TARBALL%.xz}
+    tar_compression_flag=
+    TAR_COMMAND_SUFFIX=
+    TMPDIR="$(dirname "${TARBALL}")"
+
+  else
+
+    if nvm_tar_knows_J; then
+      tar_compression_flag='J'
+    fi
+
+    TAR_COMMAND_SUFFIX="--strip-components 1"
+    TMPDIR="$(dirname "${TARBALL}")/files"
+  fi
+
+  if [ -f "${TARBALL}" ] && [ -d "${TMPDIR}" ]; then
+    # shellcheck disable=SC2086
+    command ${tar} "-x${tar_compression_flag}f" "${TARBALL}" -C "${TMPDIR}" ${TAR_COMMAND_SUFFIX}
+  fi
+
+  # The `-C` option for `tar` on Openbsd takes its parameter and extracts files
+  # from the tarball into a new directory named after it. That's why this update
+  # in the `$TMPDIR` is necessary
+  if [ "_$NVM_OS" = "_openbsd" ]; then
+    BASE=$(basename "${TMPDIR}")
+    TMPDIR="${TMPDIR}/${BASE}"
+  fi
+
+  nvm_echo "$TMPDIR"
+}
+
 nvm_get_make_jobs() {
   if nvm_is_natural_num "${1-}"; then
     NVM_MAKE_JOBS="$1"
@@ -2107,7 +2171,7 @@ nvm_get_make_jobs() {
     "_linux")
       NVM_CPU_CORES="$(nvm_grep -c -E '^processor.+: [0-9]+' /proc/cpuinfo)"
     ;;
-    "_freebsd" | "_darwin")
+    "_freebsd" | "_openbsd" | "_darwin")
       NVM_CPU_CORES="$(sysctl -n hw.ncpu)"
     ;;
     "_sunos")
@@ -2184,11 +2248,11 @@ nvm_install_source() {
   make='make'
   local MAKE_CXX
   case "${NVM_OS}" in
-    'freebsd')
+    'freebsd' | 'openbsd')
       make='gmake'
       MAKE_CXX="CC=${CC:-cc} CXX=${CXX:-c++}"
     ;;
-    'darwin')
+    'openbsd' | 'darwin')
       MAKE_CXX="CC=${CC:-cc} CXX=${CXX:-c++}"
     ;;
     'aix')
@@ -2202,15 +2266,9 @@ nvm_install_source() {
     fi
   fi
 
-  local tar_compression_flag
-  tar_compression_flag='z'
-  if nvm_supports_xz "${VERSION}"; then
-    tar_compression_flag='J'
-  fi
-
   local tar
   tar='tar'
-  if [ "${NVM_OS}" = 'aix' ]; then
+  if [ "${NVM_OS}" = 'aix' ] || [ "${NVM_OS}" = 'openbsd' ]; then
     tar='gtar'
   fi
 
@@ -2229,15 +2287,27 @@ nvm_install_source() {
 
   TARBALL="$(PROGRESS_BAR="${PROGRESS_BAR}" nvm_download_artifact "${FLAVOR}" source "${TYPE}" "${VERSION}" | command tail -1)" && \
   [ -f "${TARBALL}" ] && \
-  TMPDIR="$(dirname "${TARBALL}")/files" && \
+  TMPDIR="$(nvm_extract_tar_artifact "${TARBALL}" "${NVM_OS}" | command tail -1)" && \
+
+  local configure_env
+  # Node's configure.py sets gcc and g++ by default except for darwin
+  # OpenBSD needs to use cc and c++
+  if [ "${NVM_OS}" = 'openbsd' ]; then
+    configure_env="CC=cc CXX=c++"
+  fi
+
   if ! (
-    # shellcheck disable=SC2086
-    command mkdir -p "${TMPDIR}" && \
-    command "${tar}" -x${tar_compression_flag}f "${TARBALL}" -C "${TMPDIR}" --strip-components 1 && \
     VERSION_PATH="$(nvm_version_path "${PREFIXED_VERSION}")" && \
     nvm_cd "${TMPDIR}" && \
-    nvm_echo '$>'./configure --prefix="${VERSION_PATH}" $ADDITIONAL_PARAMETERS'<' && \
-    ./configure --prefix="${VERSION_PATH}" $ADDITIONAL_PARAMETERS && \
+    nvm_echo '$>'env ${configure_env} ./configure --prefix="${VERSION_PATH}" ${ADDITIONAL_PARAMETERS}'<' && \
+    env ${configure_env} ./configure --prefix="${VERSION_PATH}" ${ADDITIONAL_PARAMETERS} && \
+
+    # Post-configure: OpenBSD needs to remove the ldl flag in the OpenSSL dep
+    if [ "${NVM_OS}" = 'openbsd' ]; then
+      sed -i 's/-ldl //' ${TMPDIR}/out/deps/openssl/openssl.target.mk
+      sed -i 's/-ldl //' ${TMPDIR}/out/deps/openssl/openssl-cli.target.mk
+    fi
+
     $make -j "${NVM_MAKE_JOBS}" ${MAKE_CXX-} && \
     command rm -f "${VERSION_PATH}" 2>/dev/null && \
     $make -j "${NVM_MAKE_JOBS}" ${MAKE_CXX-} install
@@ -2785,7 +2855,7 @@ nvm() {
       local TEST_TOOLS ADD_TEST_TOOLS
       TEST_TOOLS="git grep awk"
       ADD_TEST_TOOLS="sed cut basename rm mkdir xargs"
-      if [ "darwin" != "$(nvm_get_os)" ] && [ "freebsd" != "$(nvm_get_os)" ]; then
+      if [ "darwin" != "$(nvm_get_os)" ] && [ "freebsd" != "$(nvm_get_os)" ] && [ "openbsd" != "$(nvm_get_os)" ]; then
         TEST_TOOLS="${TEST_TOOLS} ${ADD_TEST_TOOLS}"
       else
         for tool in ${ADD_TEST_TOOLS} ; do
@@ -3108,10 +3178,10 @@ nvm() {
         EXIT_CODE=0
       else
 
-        if [ "_${NVM_OS}" = "_freebsd" ]; then
-          # node.js and io.js do not have a FreeBSD binary
+        if [ "_${NVM_OS}" = "_freebsd" ] || [ "_${NVM_OS}" = "_openbsd" ]; then
+          # node.js and io.js do not have a FreeBSD/OpenBSD binary
           nobinary=1
-          nvm_err "Currently, there is no binary for FreeBSD"
+          nvm_err "Currently, there is no binary for ${NVM_OS}"
         elif [ "_${NVM_OS}" = "_sunos" ]; then
           # Not all node/io.js versions have a Solaris binary
           if ! nvm_has_solaris_binary "${VERSION}"; then
