@@ -258,6 +258,13 @@ To install a specific version of node:
 nvm install 6.14.4 # or 10.10.0, 8.9.1, etc
 ```
 
+To set an alias:
+
+```sh
+nvm alias my_alias v14.4.0
+```
+Make sure that your alias does not contain any spaces or any hashtags (#).
+
 The first version installed becomes the default. New shells will start with the default version of node (e.g., `nvm alias default`).
 
 You can list available versions using `ls-remote`:
@@ -506,9 +513,18 @@ Found '/path/to/project/.nvmrc' with version <5.9>
 Now using node v5.9.1 (npm v3.7.3)
 ```
 
-`nvm use` et. al. will traverse directory structure upwards from the current directory looking for the `.nvmrc` file. In other words, running `nvm use` et. al. in any subdirectory of a directory with an `.nvmrc` will result in that `.nvmrc` being utilized.
+`.nvmrc` files may have comments. The following is the notation to have a comment inside a `.nvmrc` file:
+```bash
+# This is a comment
 
-The contents of a `.nvmrc` file **must** be the `<version>` (as described by `nvm --help`) followed by a newline. No trailing spaces are allowed, and the trailing newline is required.
+  node # Another comment
+```
+When reading the `.nvmrc` file, nvm will:
+1. Remove all comments on their own line as shown in the first line of the example
+2. Remove all comments in middle of a line. Because of this, # is not allowed inside your `nvm` alias. Example on line 3
+3. Remove all newlines such as the one on line 2
+4. Remove all tabs
+5. Trim the lines
 
 ### Deeper Shell Integration
 
@@ -674,7 +690,6 @@ nvm exposes the following environment variables:
 - `NVM_RC_VERSION` - version from .nvmrc file if being used.
 
 Additionally, nvm modifies `PATH`, and, if present, `MANPATH` and `NODE_PATH` when changing versions.
-
 
 ## Bash Completion
 

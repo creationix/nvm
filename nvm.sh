@@ -379,23 +379,28 @@ nvm_find_nvmrc() {
 
 # Obtain nvm version from rc file
 nvm_rc_version() {
+  local NVM_USE_SILENT
+  NVM_USE_SILENT=false
+  if [ "${1-}" = '--silent' ]; then
+    NVM_USE_SILENT=true
+  fi
   export NVM_RC_VERSION=''
   local NVMRC_PATH
   NVMRC_PATH="$(nvm_find_nvmrc)"
   if [ ! -e "${NVMRC_PATH}" ]; then
-    if [ "${NVM_SILENT:-0}" -ne 1 ]; then
+    if [ "${NVM_USE_SILENT}" != true ]; then
       nvm_err "No .nvmrc file found"
     fi
     return 1
   fi
-  NVM_RC_VERSION="$(command head -n 1 "${NVMRC_PATH}" | command tr -d '\r')" || command printf ''
+  NVM_RC_VERSION="$(command cat "${NVMRC_PATH}" | command tr -d '\r' | sed -e 's/\s*#.*$// ; /^\s*$/d' | command tr -d '\n' | command tr -d '\t' | command head -n 1 | sed -e 's/ *$//g ; s/^ *//g')" || command printf ''
   if [ -z "${NVM_RC_VERSION}" ]; then
-    if [ "${NVM_SILENT:-0}" -ne 1 ]; then
+    if [ "${NVM_USE_SILENT}" != true ]; then
       nvm_err "Warning: empty .nvmrc file found at \"${NVMRC_PATH}\""
     fi
     return 2
   fi
-  if [ "${NVM_SILENT:-0}" -ne 1 ]; then
+  if [ "${NVM_USE_SILENT}" != true ]; then
     nvm_echo "Found '${NVMRC_PATH}' with version <${NVM_RC_VERSION}>"
   fi
 }
@@ -3365,24 +3370,25 @@ nvm() {
       done
     ;;
     "deactivate")
-      local NVM_SILENT
+      local NVM_USE_SILENT
       while [ $# -ne 0 ]; do
-        case "${1}" in
-          --silent) NVM_SILENT=1 ;;
-          --) ;;
+        case "$1" in
+          --silent)
+            NVM_USE_SILENT=1
+            shift
+          ;;
         esac
-        shift
       done
       local NEWPATH
       NEWPATH="$(nvm_strip_path "${PATH}" "/bin")"
       if [ "_${PATH}" = "_${NEWPATH}" ]; then
-        if [ "${NVM_SILENT:-0}" -ne 1 ]; then
+        if [ "$NVM_USE_SILENT" -ne 1 ]; then
           nvm_err "Could not find ${NVM_DIR}/*/bin in \${PATH}"
         fi
       else
         export PATH="${NEWPATH}"
         hash -r
-        if [ "${NVM_SILENT:-0}" -ne 1 ]; then
+        if [ "$NVM_USE_SILENT" -ne 1 ]; then
           nvm_echo "${NVM_DIR}/*/bin removed from \${PATH}"
         fi
       fi
@@ -3390,12 +3396,12 @@ nvm() {
       if [ -n "${MANPATH-}" ]; then
         NEWPATH="$(nvm_strip_path "${MANPATH}" "/share/man")"
         if [ "_${MANPATH}" = "_${NEWPATH}" ]; then
-          if [ "${NVM_SILENT:-0}" -ne 1 ]; then
+          if [ "$NVM_USE_SILENT" -ne 1 ]; then
             nvm_err "Could not find ${NVM_DIR}/*/share/man in \${MANPATH}"
           fi
         else
           export MANPATH="${NEWPATH}"
-          if [ "${NVM_SILENT:-0}" -ne 1 ]; then
+          if [ "$NVM_USE_SILENT" -ne 1 ]; then
             nvm_echo "${NVM_DIR}/*/share/man removed from \${MANPATH}"
           fi
         fi
@@ -3405,7 +3411,7 @@ nvm() {
         NEWPATH="$(nvm_strip_path "${NODE_PATH}" "/lib/node_modules")"
         if [ "_${NODE_PATH}" != "_${NEWPATH}" ]; then
           export NODE_PATH="${NEWPATH}"
-          if [ "${NVM_SILENT:-0}" -ne 1 ]; then
+          if [ "$NVM_USE_SILENT" -ne 1 ]; then
             nvm_echo "${NVM_DIR}/*/lib/node_modules removed from \${NODE_PATH}"
           fi
         fi
@@ -3415,7 +3421,8 @@ nvm() {
     ;;
     "use")
       local PROVIDED_VERSION
-      local NVM_SILENT
+      local NVM_USE_SILENT
+      NVM_USE_SILENT=0
       local NVM_SILENT_ARG
       local NVM_DELETE_PREFIX
       NVM_DELETE_PREFIX=0
@@ -3424,7 +3431,7 @@ nvm() {
       while [ $# -ne 0 ]; do
         case "$1" in
           --silent)
-            NVM_SILENT=1
+            NVM_USE_SILENT=1
             NVM_SILENT_ARG='--silent'
           ;;
           --delete-prefix) NVM_DELETE_PREFIX=1 ;;
@@ -3444,7 +3451,12 @@ nvm() {
       if [ -n "${NVM_LTS-}" ]; then
         VERSION="$(nvm_match_version "lts/${NVM_LTS:-*}")"
       elif [ -z "${PROVIDED_VERSION-}" ]; then
-        NVM_SILENT="${NVM_SILENT:-0}" nvm_rc_version
+        # Get the .nvmrc version depending if quiet mode is on or not
+        if [ "$NVM_USE_SILENT" -ne 1 ]; then
+          nvm_rc_version
+        else
+          nvm_rc_version --silent
+        fi
         if [ -n "${NVM_RC_VERSION-}" ]; then
           PROVIDED_VERSION="${NVM_RC_VERSION}"
           VERSION="$(nvm_version "${PROVIDED_VERSION}")"
@@ -3464,28 +3476,44 @@ nvm() {
       fi
 
       if [ "_${VERSION}" = '_system' ]; then
-        if nvm_has_system_node && nvm deactivate "${NVM_SILENT_ARG-}" >/dev/null 2>&1; then
-          if [ "${NVM_SILENT:-0}" -ne 1 ]; then
-            nvm_echo "Now using system version of node: $(node -v 2>/dev/null)$(nvm_print_npm_version)"
+        if [ $NVM_USE_SILENT -ne 1 ]; then
+          if nvm_has_system_node && nvm deactivate >/dev/null 2>&1; then
+            if [ $NVM_USE_SILENT -ne 1 ]; then
+              nvm_echo "Now using system version of node: $(node -v 2>/dev/null)$(nvm_print_npm_version)"
+            fi
+            return
+          elif nvm_has_system_iojs && nvm deactivate >/dev/null 2>&1; then
+            if [ $NVM_USE_SILENT -ne 1 ]; then
+              nvm_echo "Now using system version of io.js: $(iojs --version 2>/dev/null)$(nvm_print_npm_version)"
+            fi
+            return
+          elif [ $NVM_USE_SILENT -ne 1 ]; then
+            nvm_err 'System version of node not found.'
           fi
-          return
-        elif nvm_has_system_iojs && nvm deactivate "${NVM_SILENT_ARG-}" >/dev/null 2>&1; then
-          if [ "${NVM_SILENT:-0}" -ne 1 ]; then
-            nvm_echo "Now using system version of io.js: $(iojs --version 2>/dev/null)$(nvm_print_npm_version)"
+        else
+          if nvm_has_system_node && nvm deactivate --quiet >/dev/null 2>&1; then
+            if [ $NVM_USE_SILENT -ne 1 ]; then
+              nvm_echo "Now using system version of node: $(node -v 2>/dev/null)$(nvm_print_npm_version)"
+            fi
+            return
+          elif nvm_has_system_iojs && nvm deactivate --quiet >/dev/null 2>&1; then
+            if [ $NVM_USE_SILENT -ne 1 ]; then
+              nvm_echo "Now using system version of io.js: $(iojs --version 2>/dev/null)$(nvm_print_npm_version)"
+            fi
+            return
+          elif [ $NVM_USE_SILENT -ne 1 ]; then
+            nvm_err 'System version of node not found.'
           fi
-          return
-        elif [ "${NVM_SILENT:-0}" -ne 1 ]; then
-          nvm_err 'System version of node not found.'
         fi
         return 127
       elif [ "_${VERSION}" = "_∞" ]; then
-        if [ "${NVM_SILENT:-0}" -ne 1 ]; then
+        if [ "${NVM_USE_SILENT}" -ne 1 ]; then
           nvm_err "The alias \"${PROVIDED_VERSION}\" leads to an infinite loop. Aborting."
         fi
         return 8
       fi
       if [ "${VERSION}" = 'N/A' ]; then
-        if [ "${NVM_SILENT:-0}" -ne 1 ]; then
+        if [ $NVM_USE_SILENT -ne 1 ]; then
           nvm_err "N/A: version \"${PROVIDED_VERSION} -> ${VERSION}\" is not yet installed."
           nvm_err ""
           nvm_err "You need to run \"nvm install ${PROVIDED_VERSION}\" to install it before using it."
@@ -3520,7 +3548,7 @@ nvm() {
       fi
       local NVM_USE_OUTPUT
       NVM_USE_OUTPUT=''
-      if [ "${NVM_SILENT:-0}" -ne 1 ]; then
+      if [ "${NVM_USE_SILENT}" -ne 1 ]; then
         if nvm_is_iojs_version "${VERSION}"; then
           NVM_USE_OUTPUT="Now using io.js $(nvm_strip_iojs_prefix "${VERSION}")$(nvm_print_npm_version)"
         else
@@ -3533,14 +3561,14 @@ nvm() {
         if [ -n "${PROVIDED_VERSION}" ]; then
           NVM_USE_CMD="${NVM_USE_CMD} ${VERSION}"
         fi
-        if [ "${NVM_SILENT:-0}" -eq 1 ]; then
+        if [ "${NVM_USE_SILENT}" -eq 1 ]; then
           NVM_USE_CMD="${NVM_USE_CMD} --silent"
         fi
         if ! nvm_die_on_prefix "${NVM_DELETE_PREFIX}" "${NVM_USE_CMD}" "${NVM_VERSION_DIR}"; then
           return 11
         fi
       fi
-      if [ -n "${NVM_USE_OUTPUT-}" ] && [ "${NVM_SILENT:-0}" -ne 1 ]; then
+      if [ -n "${NVM_USE_OUTPUT-}" ] && [ "$NVM_USE_SILENT" -ne 1 ]; then
         nvm_echo "${NVM_USE_OUTPUT}"
       fi
     ;;
@@ -3861,6 +3889,9 @@ nvm() {
         # so, unalias it.
         nvm unalias "${ALIAS}"
         return $?
+      elif echo "$ALIAS" | grep -q "#"; then
+        nvm_err "Aliases may not have a # inside it"
+        exit 1
       elif [ "${TARGET}" != '--' ]; then
         # a target was passed: create an alias
         if [ "${ALIAS#*\/}" != "${ALIAS}" ]; then
