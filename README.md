@@ -56,7 +56,7 @@
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## About
-nvm is a version manager for [node.js](https://nodejs.org/en/), designed to be installed per-user, and invoked per-shell. `nvm` works on any POSIX-compliant shell (sh, dash, ksh, zsh, bash), in particular on these platforms: unix, macOS, and windows WSL.
+nvm is a version manager for [node.js](https://nodejs.org/en/), designed to be installed per-user, and invoked per-shell. `nvm` works on any POSIX-compliant shell (sh, dash, ksh, zsh, bash), in particular on these platforms: unix, macOS, and windows WSL (but *not* the standard Windows command prompt nor PowerShell).
 
 <a id="installation-and-update"></a>
 <a id="install-script"></a>
