@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 setup() {
   # Needed to avoid to checkout the repo to the latest nvm version, losing the commits of the current PR
