@@ -9,6 +9,7 @@
 - [Installing and Updating](#installing-and-updating)
   - [Install & Update Script](#install--update-script)
     - [Additional Notes](#additional-notes)
+    - [Installing in Docker](#installing-in-docker)
     - [Troubleshooting on Linux](#troubleshooting-on-linux)
     - [Troubleshooting on macOS](#troubleshooting-on-macos)
     - [Ansible](#ansible)
@@ -90,6 +91,23 @@ export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || pr
 Eg: `curl ... | NVM_DIR="path/to/nvm"`. Ensure that the `NVM_DIR` does not contain a trailing slash.
 
 - The installer can use `git`, `curl`, or `wget` to download `nvm`, whichever is available.
+
+#### Installing in Docker
+
+To install `nvm` in Docker, you may need to prepare your image's environment in advance in order to use `node` & `npm`. Here's a winning recipe:
+
+```Dockerfile
+# set your target node version
+ENV NODE_VERSION 14.13.1
+# set NVM_DIR
+ENV NVM_DIR="$HOME/.nvm"
+# patch PATH
+ENV PATH $NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
+# install!
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.36.0/install.sh | bash \
+  && source $NVM_DIR/nvm.sh \
+  && nvm install ${NODE_VERSION}
+```
 
 #### Troubleshooting on Linux
 
