@@ -287,7 +287,7 @@ nvm exec 4.2 node --version
 You can also get the path to the executable to where it was installed:
 
 ```sh
-nvm which 12.22.1
+nvm which 12.22
 ```
 
 In place of a version pointer like "14.7" or "16.3" or "12.22.1", you can use the following special default aliases with `nvm install`, `nvm use`, `nvm run`, `nvm exec`, `nvm which`, etc:
