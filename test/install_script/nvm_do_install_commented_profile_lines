@@ -1,0 +1,63 @@
+#!/bin/sh
+
+die () { echo "$@" ; cleanup ; exit 1; }
+
+cleanup() {
+  unset -f install_nvm_from_git install_nvm_as_script nvm_detect_profile nvm_has
+  unset -f setup cleanup die assert_install
+  unset NVM_ENV METHOD PROFILE
+  rm -rf "${TMPDIR_FOR_TEST-}" 2>/dev/null
+}
+
+setup() {
+  NVM_ENV=testing \. ../../install.sh
+
+  # Mock installation functions to do nothing
+  install_nvm_from_git() { :; }
+  install_nvm_as_script() { :; }
+
+  # Mock nvm_has to return true for git
+  nvm_has() {
+    case "$1" in
+      git) return 0 ;;
+      *) return 1 ;;
+    esac
+  }
+
+  nvm_detect_profile() {
+    echo "${TEST_PROFILE}"
+  }
+}
+
+TMPDIR_FOR_TEST="$(mktemp -d)"
+TEST_PROFILE="${TMPDIR_FOR_TEST}/.bashrc"
+mkdir -p "${TMPDIR_FOR_TEST}/nvm"
+: > "${TMPDIR_FOR_TEST}/nvm/nvm.sh"
+
+# `nvm_do_install` unsets every `nvm_` function when it finishes, so each run sources the installer and mocks afresh.
+# args: the profile's content, then the message the install must print about it
+assert_install() {
+  setup
+  printf '%s\n' "$1" > "${TEST_PROFILE}"
+  OUTPUT="$(PROFILE='' METHOD='' NVM_DIR="${TMPDIR_FOR_TEST}/nvm" nvm_do_install 2>&1)"
+  case "${OUTPUT}" in
+    *"$2"*) ;;
+    *) die "with a profile of >$1<, expected >$2<; got >${OUTPUT}<" ;;
+  esac
+}
+
+TAB="$(printf '\t')"
+
+# a commented-out line loads nothing, however it is indented
+assert_install '# [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' 'Appending nvm source string'
+assert_install '  # [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' 'Appending nvm source string'
+assert_install "${TAB}"'# [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' 'Appending nvm source string'
+
+# an active line still counts, indented or not
+assert_install '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' 'nvm source string already in'
+assert_install '  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' 'nvm source string already in'
+
+# the same for the bash_completion line
+assert_install '  # [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"' 'Appending bash_completion source string'
+
+cleanup
