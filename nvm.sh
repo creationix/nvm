@@ -4273,13 +4273,17 @@ nvm_die_on_prefix() {
   #
   # if any of them have a `prefix`, fail.
   # if any have `globalconfig`, fail also, just in case, to avoid spidering configs.
+  #
+  # when deleting, pass `--prefix` so npm does not walk up from `$PWD` and load the project npmrc:
+  # it is untrusted, and its `userconfig`/`globalconfig`/`location` would choose which file npm rewrites.
+  # `npm config delete` never edits the project npmrc itself, so that one is left for the user to edit.
 
   local NVM_NPM_BUILTIN_NPMRC
   NVM_NPM_BUILTIN_NPMRC="${NVM_VERSION_DIR}/lib/node_modules/npm/npmrc"
   if nvm_npmrc_bad_news_bears "${NVM_NPM_BUILTIN_NPMRC}"; then
     if [ "_${NVM_DELETE_PREFIX}" = "_1" ]; then
-      npm config --loglevel=warn delete prefix --userconfig="${NVM_NPM_BUILTIN_NPMRC}"
-      npm config --loglevel=warn delete globalconfig --userconfig="${NVM_NPM_BUILTIN_NPMRC}"
+      npm config --loglevel=warn delete prefix --userconfig="${NVM_NPM_BUILTIN_NPMRC}" --prefix="${NVM_VERSION_DIR}"
+      npm config --loglevel=warn delete globalconfig --userconfig="${NVM_NPM_BUILTIN_NPMRC}" --prefix="${NVM_VERSION_DIR}"
     else
       nvm_err "Your builtin npmrc file ($(nvm_sanitize_path "${NVM_NPM_BUILTIN_NPMRC}"))"
       nvm_err 'has a `globalconfig` and/or a `prefix` setting, which are incompatible with nvm.'
@@ -4292,8 +4296,8 @@ nvm_die_on_prefix() {
   NVM_NPM_GLOBAL_NPMRC="${NVM_VERSION_DIR}/etc/npmrc"
   if nvm_npmrc_bad_news_bears "${NVM_NPM_GLOBAL_NPMRC}"; then
     if [ "_${NVM_DELETE_PREFIX}" = "_1" ]; then
-      npm config --global --loglevel=warn delete prefix
-      npm config --global --loglevel=warn delete globalconfig
+      npm config --global --loglevel=warn delete prefix --prefix="${NVM_VERSION_DIR}"
+      npm config --global --loglevel=warn delete globalconfig --prefix="${NVM_VERSION_DIR}"
     else
       nvm_err "Your global npmrc file ($(nvm_sanitize_path "${NVM_NPM_GLOBAL_NPMRC}"))"
       nvm_err 'has a `globalconfig` and/or a `prefix` setting, which are incompatible with nvm.'
@@ -4306,8 +4310,8 @@ nvm_die_on_prefix() {
   NVM_NPM_USER_NPMRC="${HOME}/.npmrc"
   if nvm_npmrc_bad_news_bears "${NVM_NPM_USER_NPMRC}"; then
     if [ "_${NVM_DELETE_PREFIX}" = "_1" ]; then
-      npm config --loglevel=warn delete prefix --userconfig="${NVM_NPM_USER_NPMRC}"
-      npm config --loglevel=warn delete globalconfig --userconfig="${NVM_NPM_USER_NPMRC}"
+      npm config --loglevel=warn delete prefix --userconfig="${NVM_NPM_USER_NPMRC}" --prefix="${NVM_VERSION_DIR}"
+      npm config --loglevel=warn delete globalconfig --userconfig="${NVM_NPM_USER_NPMRC}" --prefix="${NVM_VERSION_DIR}"
     else
       nvm_err "Your user’s .npmrc file ($(nvm_sanitize_path "${NVM_NPM_USER_NPMRC}"))"
       nvm_err 'has a `globalconfig` and/or a `prefix` setting, which are incompatible with nvm.'
@@ -4320,8 +4324,9 @@ nvm_die_on_prefix() {
   NVM_NPM_PROJECT_NPMRC="$(nvm_find_project_dir)/.npmrc"
   if nvm_npmrc_bad_news_bears "${NVM_NPM_PROJECT_NPMRC}"; then
     if [ "_${NVM_DELETE_PREFIX}" = "_1" ]; then
-      npm config --loglevel=warn delete prefix
-      npm config --loglevel=warn delete globalconfig
+      nvm_err "Your project npmrc file ($(nvm_sanitize_path "${NVM_NPM_PROJECT_NPMRC}"))"
+      nvm_err 'has a `globalconfig` and/or a `prefix` setting, which are incompatible with nvm.'
+      nvm_err 'Project npmrc files are not modified by `--delete-prefix`; edit that file to unset it.'
     else
       nvm_err "Your project npmrc file ($(nvm_sanitize_path "${NVM_NPM_PROJECT_NPMRC}"))"
       nvm_err 'has a `globalconfig` and/or a `prefix` setting, which are incompatible with nvm.'

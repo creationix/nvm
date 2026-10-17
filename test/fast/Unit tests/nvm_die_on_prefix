@@ -209,6 +209,52 @@ Run \`foo\` to unset it."
   [ "_$CAPTURED_EXIT_CODE" = "_10" ] || die "'nvm_die_on_prefix 0 foo' with user .npmrc that has globalconfig did not exit with 10; got '$CAPTURED_EXIT_CODE'"
 )
 
+# "delete the prefix": npm must not load the (untrusted) project npmrc, which could otherwise choose
+# the file npm rewrites via `userconfig`/`globalconfig`/`location`, and the project npmrc is never edited
+(
+  DELETE_DIR="${TEST_DIR}/delete-prefix"
+  DELETE_VERSION_DIR="${DELETE_DIR}/version"
+  DELETE_PROJECT_DIR="${DELETE_DIR}/project"
+  DELETE_HOME="${DELETE_DIR}/home"
+  mkdir -p "${DELETE_VERSION_DIR}/etc" "${DELETE_VERSION_DIR}/lib/node_modules/npm" "${DELETE_PROJECT_DIR}" "${DELETE_HOME}"
+  export HOME="${DELETE_HOME}"
+  echo 'prefix=garbage' > "${DELETE_VERSION_DIR}/lib/node_modules/npm/npmrc"
+  echo 'prefix=garbage' > "${DELETE_VERSION_DIR}/etc/npmrc"
+  echo 'prefix=garbage' > "${DELETE_HOME}/.npmrc"
+
+  cd "${DELETE_PROJECT_DIR}" || die 'could not cd to the project dir'
+  touch package.json
+  PROJECT_NPMRC_CONTENTS="prefix=garbage
+userconfig=${DELETE_HOME}/victim
+location=global
+globalconfig=${DELETE_HOME}/victim"
+  echo "${PROJECT_NPMRC_CONTENTS}" > .npmrc
+
+  NPM_CALLS="${DELETE_DIR}/npm-calls"
+  npm() {
+    echo "$*" >> "${NPM_CALLS}"
+  }
+
+  try_err nvm_die_on_prefix 1 foo "${DELETE_VERSION_DIR}"
+
+  EXPECTED_OUTPUT="Your project npmrc file ($(nvm_sanitize_path "${DELETE_PROJECT_DIR}")/.npmrc)
+has a \`globalconfig\` and/or a \`prefix\` setting, which are incompatible with nvm.
+Project npmrc files are not modified by \`--delete-prefix\`; edit that file to unset it."
+  [ "_$CAPTURED_STDERR" = "_$EXPECTED_OUTPUT" ] || die "'nvm_die_on_prefix 1 foo' with a project .npmrc that has prefix did not warn with '$EXPECTED_OUTPUT'; got '$CAPTURED_STDERR'"
+  [ "_$CAPTURED_EXIT_CODE" = "_0" ] || die "'nvm_die_on_prefix 1 foo' with a project .npmrc that has prefix did not exit with 0; got '$CAPTURED_EXIT_CODE'"
+
+  EXPECTED_OUTPUT="config --loglevel=warn delete prefix --userconfig=${DELETE_VERSION_DIR}/lib/node_modules/npm/npmrc --prefix=${DELETE_VERSION_DIR}
+config --loglevel=warn delete globalconfig --userconfig=${DELETE_VERSION_DIR}/lib/node_modules/npm/npmrc --prefix=${DELETE_VERSION_DIR}
+config --global --loglevel=warn delete prefix --prefix=${DELETE_VERSION_DIR}
+config --global --loglevel=warn delete globalconfig --prefix=${DELETE_VERSION_DIR}
+config --loglevel=warn delete prefix --userconfig=${DELETE_HOME}/.npmrc --prefix=${DELETE_VERSION_DIR}
+config --loglevel=warn delete globalconfig --userconfig=${DELETE_HOME}/.npmrc --prefix=${DELETE_VERSION_DIR}"
+  OUTPUT="$(cat "${NPM_CALLS}")"
+  [ "_$OUTPUT" = "_$EXPECTED_OUTPUT" ] || die "'nvm_die_on_prefix 1 foo' did not run npm with a pinned \`--prefix\` (and never for the project npmrc): expected '$EXPECTED_OUTPUT'; got '$OUTPUT'"
+
+  [ "_$(cat .npmrc)" = "_${PROJECT_NPMRC_CONTENTS}" ] || die "'nvm_die_on_prefix 1 foo' edited the project .npmrc; got '$(cat .npmrc)'"
+) || die "'nvm_die_on_prefix 1 foo' let a project .npmrc influence npm"
+
 # nvm_npmrc_bad_news_bears matches `^(prefix|globalconfig) *=`
 NPMRC="${TEST_DIR}/bad-news.npmrc"
 printf 'prefix=x\n' > "${NPMRC}"
