@@ -1,0 +1,66 @@
+#!/bin/sh
+
+WORK="$PWD/remote_version-dash-pattern-work.$$"
+export NVM_DIR="$WORK/.nvm"
+SECRET='npm_0123456789abcdef'
+
+cleanup() {
+  cd "$WORK/.." || true
+  unset -f nvm_download nvm_remote_versions
+  rm -rf "$WORK"
+}
+die () { echo "$@" ; cleanup ; exit 1; }
+
+mkdir -p "$NVM_DIR/alias" "$WORK/project"
+
+\. ../../../nvm.sh
+
+\. ../../common.sh
+
+# a file in the working directory that nvm has no business reading
+echo "//registry.npmjs.org/:_authToken=${SECRET}" > "$WORK/project/.npmrc"
+cd "$WORK/project" || die 'could not cd to the project dir'
+
+# with `-r`/`-R` and no file operand, grep ignores stdin and searches the working directory
+DASH_PATTERN='-Rohenpm_[A-Za-z0-9]*'
+
+nvm_download() {
+  printf 'version\tdate\tfiles\tnpm\tv8\tuv\tzlib\topenssl\tmodules\tlts\tsecurity\n'
+  printf 'v22.1.0\t2024-05-02\tlinux-x64\t-\t-\t-\t-\t-\t-\t-\t-\n'
+  printf 'v20.0.0\t2023-04-18\tlinux-x64\t-\t-\t-\t-\t-\t-\tIron\t-\n'
+}
+
+# a version pattern (eg, from a `.nvmrc`) that starts with a dash is a pattern, not grep options
+for COMMAND in nvm_ls_remote nvm_ls_remote_iojs nvm_remote_versions nvm_remote_version nvm_ls_cached nvm_offline_version; do
+  OUTPUT="$("${COMMAND}" "${DASH_PATTERN}" 2>&1)"
+  case "${OUTPUT}" in
+    *"${SECRET}"*) die "${COMMAND} parsed its pattern as grep options and read a local file; got >${OUTPUT}<" ;;
+  esac
+done
+
+try nvm_remote_version "${DASH_PATTERN}"
+[ "_${CAPTURED_STDOUT}" = '_N/A' ] || die "nvm_remote_version '${DASH_PATTERN}' did not output N/A; got >${CAPTURED_STDOUT}<"
+
+try nvm_ls_remote 20
+[ "_${CAPTURED_STDOUT}" = '_v20.0.0 Iron *' ] || die "nvm_ls_remote 20 did not find v20.0.0; got >${CAPTURED_STDOUT}<"
+
+# for implicit aliases, the pattern comes from the version column of the mirror's index.tab
+nvm_download() {
+  printf 'version\tdate\tfiles\tnpm\tv8\tuv\tzlib\topenssl\tmodules\tlts\tsecurity\n'
+  printf '%s\t2026-01-01\tlinux-x64\t-\t-\t-\t-\t-\t-\t-\t-\n' 'v9.9.\|QQQ'
+  printf '%s\t2026-01-01\tlinux-x64\t-\t-\t-\t-\t-\t-\t-\t-\n' '-99rhoe\(QQQ\)\?npm_[A-Za-z0-9]*'
+}
+
+for ALIAS in node stable; do
+  OUTPUT="$(nvm_remote_version "${ALIAS}" 2>&1)"
+  case "${OUTPUT}" in
+    *"${SECRET}"*) die "nvm_remote_version ${ALIAS} parsed a mirror-supplied version as grep options; got >${OUTPUT}<" ;;
+  esac
+done
+
+# the check that the result matches the requested pattern must look only at the result
+nvm_remote_versions() { nvm_echo 'v1.2.3'; }
+try nvm_remote_version '-Rqenpm_'
+[ "_${CAPTURED_STDOUT}" = '_N/A' ] || die "nvm_remote_version '-Rqenpm_' did not output N/A; got >${CAPTURED_STDOUT}<"
+
+cleanup

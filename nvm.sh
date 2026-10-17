@@ -1324,7 +1324,7 @@ nvm_remote_version() {
     local VERSION_NUM
     VERSION_NUM="$(nvm_echo "${VERSION}" | command awk '{print $1}')"
     # the `v` prefix and the trailing non-digit keep `20` from matching `v10.20.0` or `v200.0.0`
-    if ! nvm_echo "${VERSION_NUM} " | nvm_grep -q "$(nvm_ensure_version_prefix "${PATTERN%.}")[^0-9]"; then
+    if ! nvm_echo "${VERSION_NUM} " | nvm_grep -q -e "$(nvm_ensure_version_prefix "${PATTERN%.}")[^0-9]"; then
       VERSION='N/A'
     fi
   fi
@@ -2813,7 +2813,7 @@ EOF
         }
         prev=$10;
       }' \
-    | nvm_grep -w "${PATTERN:-.*}" \
+    | nvm_grep -w -e "${PATTERN:-.*}" \
     | $SORT_COMMAND; } << EOF
 $VERSION_LIST
 EOF
@@ -4600,7 +4600,7 @@ nvm_ls_cached() {
     fi
   } \
     | command sed 's/^node-//' \
-    | nvm_grep -w "${NVM_CACHED_PATTERN}" \
+    | nvm_grep -w -e "${NVM_CACHED_PATTERN}" \
     | nvm_grep -v "^${NVM_CACHED_RELEASE}-" \
     | nvm_filter_installed_versions \
     | nvm_sort_versions
