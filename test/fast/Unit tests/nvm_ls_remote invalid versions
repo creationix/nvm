@@ -1,0 +1,53 @@
+#!/bin/sh
+
+WORK="$PWD/ls_remote-invalid-versions-work.$$"
+export HOME="$WORK/home"
+export NVM_DIR="$HOME/.nvm"
+
+cleanup() {
+  unset -f die cleanup nvm_download
+  rm -rf "$WORK"
+}
+die () { echo "$@" ; cleanup ; exit 1; }
+
+mkdir -p "$NVM_DIR/alias"
+
+: nvm.sh
+\. ../../../nvm.sh
+
+# a malicious/compromised mirror: the version field ($1) carries terminal escapes,
+# shell syntax, or looks like an option; valid rows (including a prerelease) must still be listed
+nvm_download() {
+  printf 'version\tdate\tfiles\tnpm\tv8\tuv\tzlib\topenssl\tmodules\tlts\tsecurity\n'
+  case "$*" in
+    *iojs.org*) return ;;
+  esac
+  printf 'v24.0.0-rc.1\t2026-01-01\tlinux-x64\t-\t-\t-\t-\t-\t-\t-\t-\n'
+  printf 'v23.0.0\033]0;pwned\007\033[1A\033[2K\t2026-01-01\tlinux-x64\t-\t-\t-\t-\t-\t-\tKrypton\t-\n'
+  printf '%s\t2026-01-01\tlinux-x64\t-\t-\t-\t-\t-\t-\tJod\t-\n' 'lts/-10*path[$(touch_pwned)1]'
+  printf '%s\t2026-01-01\tlinux-x64\t-\t-\t-\t-\t-\t-\t-\t-\n' '--v21.0.0'
+  printf 'v20.0.0\t2026-01-01\tlinux-x64\t-\t-\t-\t-\t-\t-\tIron\t-\n'
+}
+
+OUTPUT="$(nvm_ls_remote)"
+EXPECTED_OUTPUT='v20.0.0 Iron *
+v24.0.0-rc.1'
+[ "${OUTPUT}" = "${EXPECTED_OUTPUT}" ] || die "expected >${EXPECTED_OUTPUT}<, got >${OUTPUT}<"
+
+OUTPUT="$(nvm_remote_version 23)"
+EXPECTED_OUTPUT='N/A'
+[ "${OUTPUT}" = "${EXPECTED_OUTPUT}" ] || die "nvm_remote_version 23: expected >${EXPECTED_OUTPUT}<, got >${OUTPUT}<"
+
+[ ! -e "$NVM_DIR/alias/lts/krypton" ] || die 'a version with control characters was stored in lts/krypton'
+[ ! -e "$NVM_DIR/alias/lts/jod" ] || die 'a version with shell syntax was stored in lts/jod'
+
+OUTPUT="$(cat "$NVM_DIR/alias/lts/*")"
+EXPECTED_OUTPUT='lts/iron'
+[ "${OUTPUT}" = "${EXPECTED_OUTPUT}" ] || die "expected lts/* to hold >${EXPECTED_OUTPUT}<, got >${OUTPUT}<"
+
+OUTPUT="$(cat "$NVM_DIR/alias/lts/iron")"
+EXPECTED_OUTPUT='v20.0.0'
+[ "${OUTPUT}" = "${EXPECTED_OUTPUT}" ] || die "expected lts/iron to hold >${EXPECTED_OUTPUT}<, got >${OUTPUT}<"
+
+cleanup
+echo "nvm_ls_remote invalid versions: passed"

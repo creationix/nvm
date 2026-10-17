@@ -1483,13 +1483,17 @@ nvm_normalize_lts() {
   case "${LTS}" in
     lts/-[123456789] | lts/-[123456789][0123456789]*)
       local N
-      N="$(echo "${LTS}" | cut -d '-' -f 2)"
+      N="${LTS#lts/-}"
+      # the glob above only pins the first digit; bash and zsh evaluate a variable's
+      # contents as an expression inside `$(( ))`, including command substitutions,
+      # so only a plain number may get there
+      case "${N}" in
+        *[!0123456789]*)
+          nvm_echo "${LTS}"
+          return 0
+        ;;
+      esac
       N=$((N+1))
-      # shellcheck disable=SC2181
-      if [ $? -ne 0 ]; then
-        nvm_echo "${LTS}"
-        return 0
-      fi
       local NVM_ALIAS_DIR
       NVM_ALIAS_DIR="$(nvm_alias_path)"
       local RESULT
@@ -2742,11 +2746,10 @@ nvm_ls_remote_index_tab() {
 
   nvm_is_zsh && setopt local_options shwordsplit
   local VERSION_LIST
+  # the mirror's index.tab is untrusted: skip the header, and any row whose version
+  # is malformed, before it is printed, stored as an LTS alias, or matched against a pattern
   VERSION_LIST="$(nvm_download -L -s "${MIRROR}/index.tab" -o - \
-    | command sed "
-        1d;
-        s/^/${PREFIX}/;
-      " \
+    | command awk -v prefix="${PREFIX}" 'NR > 1 && $1 ~ /^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$/ { print prefix $0 }' \
   )"
   local LTS_ALIAS
   local LTS_VERSION

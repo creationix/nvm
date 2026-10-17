@@ -1,0 +1,56 @@
+#!/bin/sh
+
+WORK="$PWD/normalize_lts-non-numeric-work.$$"
+export HOME="$WORK/home"
+export NVM_DIR="$HOME/.nvm"
+MARKER='nvm_normalize_lts_pwned'
+
+cleanup() {
+  unset -f die cleanup
+  rm -rf "$WORK"
+  rm -f "${MARKER}"
+}
+die () { echo "$@" ; cleanup ; exit 1; }
+
+mkdir -p "$NVM_DIR/alias/lts"
+rm -f "${MARKER}"
+
+: nvm.sh
+\. ../../../nvm.sh
+
+echo 'lts/iron' > "$NVM_DIR/alias/lts/*"
+echo 'v18.0.0' > "$NVM_DIR/alias/lts/hydrogen"
+echo 'v20.0.0' > "$NVM_DIR/alias/lts/iron"
+
+ACTUAL="$(nvm_normalize_lts 'lts/-1')"
+EXPECTED='lts/hydrogen'
+[ "${ACTUAL}" = "${EXPECTED}" ] || die "lts/-1: expected >${EXPECTED}<, got >${ACTUAL}<"
+
+ACTUAL="$(nvm_normalize_lts 'lts/-1x')"
+EXPECTED='lts/-1x'
+[ "${ACTUAL}" = "${EXPECTED}" ] || die "lts/-1x: expected >${EXPECTED}<, got >${ACTUAL}<"
+
+ACTUAL="$(nvm_normalize_lts 'lts/-1-1')"
+EXPECTED='lts/-1-1'
+[ "${ACTUAL}" = "${EXPECTED}" ] || die "lts/-1-1: expected >${EXPECTED}<, got >${ACTUAL}<"
+
+ACTUAL="$(nvm_normalize_lts 'lts/-10+1')"
+EXPECTED='lts/-10+1'
+[ "${ACTUAL}" = "${EXPECTED}" ] || die "lts/-10+1: expected >${EXPECTED}<, got >${ACTUAL}<"
+
+# bash and zsh run command substitutions in array subscripts during arithmetic evaluation
+INJECTED="lts/-10*path[\$(touch ${MARKER})1]"
+ACTUAL="$(nvm_normalize_lts "${INJECTED}" 2>/dev/null)"
+[ ! -e "${MARKER}" ] || die "nvm_normalize_lts evaluated ${INJECTED}"
+[ "${ACTUAL}" = "${INJECTED}" ] || die "${INJECTED}: expected it unchanged, got >${ACTUAL}<"
+
+nvm_alias "${INJECTED}" >/dev/null 2>&1
+[ ! -e "${MARKER}" ] || die "nvm_alias evaluated ${INJECTED}"
+
+# an alias file written by an older nvm from a hostile mirror's index.tab
+echo "${INJECTED}" > "$NVM_DIR/alias/lts/iron"
+nvm_resolve_alias 'lts/*' >/dev/null 2>&1
+[ ! -e "${MARKER}" ] || die "nvm_resolve_alias evaluated a stored ${INJECTED}"
+
+cleanup
+echo "nvm_normalize_lts non-numeric offset: passed"
