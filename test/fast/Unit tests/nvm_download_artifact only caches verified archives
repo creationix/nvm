@@ -1,0 +1,79 @@
+#!/bin/sh
+
+WORK="${TMPDIR:-/tmp}/nvm_download_artifact_cache.$$"
+
+cleanup () {
+  command rm -rf "${WORK}"
+  unset -f cleanup die download_offline nvm_get_mirror nvm_binary_available nvm_get_download_slug nvm_get_artifact_compression nvm_cache_dir nvm_get_checksum nvm_version_greater_than_or_equal_to nvm_download nvm_compare_checksum
+}
+die () { echo "$@" ; cleanup ; exit 1; }
+
+: nvm.sh
+\. ../../../nvm.sh
+
+\. ../../common.sh
+
+TEST_SLUG='node-v20.0.0-linux-x64'
+TEST_CACHE_DIR="${WORK}/.cache/bin/${TEST_SLUG}"
+TEST_TARBALL="${TEST_CACHE_DIR}/${TEST_SLUG}.tar.gz"
+
+nvm_get_mirror() { nvm_echo 'http://example.com'; }
+nvm_binary_available() { return 0; }
+nvm_get_download_slug() { nvm_echo "${TEST_SLUG}"; }
+nvm_get_artifact_compression() { nvm_echo 'tar.gz'; }
+nvm_cache_dir() { nvm_echo "${WORK}/.cache"; }
+nvm_get_checksum() { nvm_echo 'fake_checksum'; }
+nvm_version_greater_than_or_equal_to() { return 0; }
+
+# appends "downloaded" to the -o target, and records whether that target is the final cache name
+nvm_download() {
+  while [ "$#" -gt 0 ]; do
+    if [ "$1" = '-o' ]; then
+      if [ "$2" = "${TEST_TARBALL}" ]; then
+        command touch "${WORK}/downloaded-to-final-name"
+      fi
+      nvm_echo 'downloaded' >> "$2"
+      return 0
+    fi
+    shift
+  done
+  return 1
+}
+
+download_offline() {
+  NVM_OFFLINE=1
+  nvm_download_artifact node binary std v20.0.0
+}
+
+command mkdir -p "${WORK}"
+
+# a download with no expected checksum to compare against must not be left in the cache
+# (this uses the real `nvm_compare_checksum`, so it runs before that is mocked)
+nvm_get_checksum() { nvm_echo ''; }
+try nvm_download_artifact node binary std v20.0.0
+[ "${CAPTURED_EXIT_CODE}" = '6' ] || die "empty checksum: expected exit code 6, got ${CAPTURED_EXIT_CODE}"
+[ ! -e "${TEST_CACHE_DIR}" ] || die "empty checksum: expected ${TEST_CACHE_DIR} to be removed"
+try download_offline
+[ "${CAPTURED_EXIT_CODE}" = '4' ] || die "empty checksum: expected --offline to find no cached archive (exit code 4), got ${CAPTURED_EXIT_CODE}"
+nvm_get_checksum() { nvm_echo 'fake_checksum'; }
+
+# a download that fails its checksum must not be left in the cache either
+nvm_compare_checksum() { return 1; }
+try nvm_download_artifact node binary std v20.0.0
+[ "${CAPTURED_EXIT_CODE}" = '6' ] || die "checksum mismatch: expected exit code 6, got ${CAPTURED_EXIT_CODE}"
+[ ! -e "${TEST_CACHE_DIR}" ] || die "checksum mismatch: expected ${TEST_CACHE_DIR} to be removed"
+try download_offline
+[ "${CAPTURED_EXIT_CODE}" = '4' ] || die "checksum mismatch: expected --offline to find no cached archive (exit code 4), got ${CAPTURED_EXIT_CODE}"
+
+# a successful download is moved into the cache only once it is verified, replacing any leftover partial download
+nvm_compare_checksum() { return 0; }
+command mkdir -p "${TEST_CACHE_DIR}"
+nvm_echo 'partial' > "${TEST_TARBALL}.unverified"
+try nvm_download_artifact node binary std v20.0.0
+[ "${CAPTURED_EXIT_CODE}" = '0' ] || die "verified download: expected exit code 0, got ${CAPTURED_EXIT_CODE}"
+[ "${CAPTURED_STDOUT}" = "${TEST_TARBALL}" ] || die "verified download: expected >${TEST_TARBALL}<, got >${CAPTURED_STDOUT}<"
+[ "$(command cat "${TEST_TARBALL}")" = 'downloaded' ] || die "verified download: expected the cached archive to hold only the new download, got >$(command cat "${TEST_TARBALL}")<"
+[ ! -e "${TEST_TARBALL}.unverified" ] || die 'verified download: expected no unverified download to remain in the cache'
+[ ! -e "${WORK}/downloaded-to-final-name" ] || die 'an unverified download was written to the final cache name, where an interrupted download would be left for --offline'
+
+cleanup

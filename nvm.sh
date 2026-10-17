@@ -3868,23 +3868,34 @@ nvm_download_artifact() {
     nvm_err "Removing the broken local cache..."
     command rm -rf "${TARBALL}"
   fi
+  # `--offline` uses the cached archive without a checksum, so only a verified archive may ever sit at ${TARBALL}
+  local UNVERIFIED_TARBALL
+  UNVERIFIED_TARBALL="${TARBALL}.unverified"
+  command rm -f "${UNVERIFIED_TARBALL}"
+
   nvm_err "Downloading $(nvm_sanitize_url "${TARBALL_URL}")..."
   # stdout is reserved for the tarball path, so nothing the downloader prints may reach it
-  nvm_download -L -C - "${PROGRESS_BAR}" "${TARBALL_URL}" -o "${TARBALL}" >&2 || {
-    command rm -rf "${TARBALL}" "${tmpdir}"
+  nvm_download -L -C - "${PROGRESS_BAR}" "${TARBALL_URL}" -o "${UNVERIFIED_TARBALL}" >&2 || {
+    command rm -rf "${UNVERIFIED_TARBALL}" "${tmpdir}"
     nvm_err "download from $(nvm_sanitize_url "${TARBALL_URL}") failed"
     return 4
   }
 
-  if nvm_grep '404 Not Found' "${TARBALL}" >/dev/null; then
-    command rm -rf "${TARBALL}" "${tmpdir}"
+  if nvm_grep '404 Not Found' "${UNVERIFIED_TARBALL}" >/dev/null; then
+    command rm -rf "${UNVERIFIED_TARBALL}" "${tmpdir}"
     nvm_err "HTTP 404 at URL $(nvm_sanitize_url "${TARBALL_URL}")"
     return 5
   fi
 
-  nvm_compare_checksum "${TARBALL}" "${CHECKSUM}" || {
-    command rm -rf "${tmpdir}/files"
+  nvm_compare_checksum "${UNVERIFIED_TARBALL}" "${CHECKSUM}" || {
+    command rm -rf "${UNVERIFIED_TARBALL}" "${tmpdir}"
     return 6
+  }
+
+  command mv -f "${UNVERIFIED_TARBALL}" "${TARBALL}" || {
+    command rm -rf "${UNVERIFIED_TARBALL}" "${tmpdir}"
+    nvm_err "moving the downloaded archive into the cache at $(nvm_sanitize_path "${TARBALL}") failed"
+    return 7
   }
 
   nvm_echo "${TARBALL}"
