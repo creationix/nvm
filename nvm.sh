@@ -893,9 +893,10 @@ all non-commented content (anything after # is a comment) must be either:
 additionally, a single bare nvm-recognized version-ish must be present (after stripping comments)."
 
   # show control characters (other than tabs and newlines) as `?`, so the parsed content is printed as plain text
+  # and only show an excerpt: a real .nvmrc is short, and showing all of a long file only helps to disclose it
   local warn_text
   warn_text="non-commented content parsed:
-$(nvm_echo "${1}" | command tr '\001-\010\013-\037\177' '??????????????????????????????')"
+$(nvm_echo "${1-}" | command tr '\001-\010\013-\037\177' '??????????????????????????????' | command awk 'NR > 10 { print "[...]"; exit } { if (length($0) > 100) { print substr($0, 1, 100) "[...]" } else { print } }')"
 
   nvm_err "$(nvm_wrap_with_color_code 'r' "${error_text}")
 

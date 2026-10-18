@@ -1,0 +1,38 @@
+#!/bin/sh
+
+die () { echo "$@" ; exit 1; }
+
+: nvm.sh
+\. ../../../nvm.sh
+
+\. ../../common.sh
+
+LONG_LINE='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaTAIL'
+CONTENT="${LONG_LINE}
+2
+3
+4
+5
+6
+7
+8
+9
+10
+eleventh"
+
+try_err nvm_nvmrc_invalid_msg "${CONTENT}"
+EXCERPT="$(nvm_echo "${CAPTURED_STDERR}" | strip_colors | sed -n '/^non-commented content parsed:$/,$p')"
+EXPECTED="non-commented content parsed:
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa[...]
+2
+3
+4
+5
+6
+7
+8
+9
+10
+[...]"
+
+[ "${EXCERPT}" = "${EXPECTED}" ] || die "expected >${EXPECTED}<; got >${EXCERPT}<"
