@@ -1,0 +1,187 @@
+#!/bin/sh
+
+WORK="$PWD/nvm_wget_with_auth_header-work.$$"
+OLDHOME="$HOME"
+OLDTMPDIR="${TMPDIR-}"
+
+cleanup() {
+  unset -f nvm_wget_same_origin
+  unset WGETRC MOCK_EXIT MOCK_KILL
+  rm -rf "$WORK"
+  HOME="$OLDHOME"
+  export HOME
+  TMPDIR="$OLDTMPDIR"
+  export TMPDIR
+}
+die () { echo "$@" ; cleanup ; exit 1; }
+
+\. ../../../nvm.sh
+
+mkdir -p "$WORK/home" "$WORK/tmp" || die 'unable to create the work directory'
+HOME="$WORK/home"
+export HOME
+TMPDIR="$WORK/tmp"
+export TMPDIR
+unset WGETRC
+
+# records what wget would be run with; the real one runs `command wget`
+nvm_wget_same_origin() {
+  : > "$WORK/args"
+  for arg in "$@"; do
+    printf '%s\n' "$arg" >> "$WORK/args"
+  done
+  printf '%s\n' "${WGETRC-}" > "$WORK/wgetrc-path"
+  if [ -n "${WGETRC-}" ] && [ -f "${WGETRC}" ]; then
+    cat "${WGETRC}" > "$WORK/wgetrc"
+    ls -l "${WGETRC}" | cut -c1-10 > "$WORK/wgetrc-mode"
+  else
+    : > "$WORK/wgetrc"
+    : > "$WORK/wgetrc-mode"
+  fi
+  if [ -n "${MOCK_KILL-}" ]; then
+    # the subshell running this function is the parent of this `sh`
+    sh -c "kill -${MOCK_KILL} \$PPID"
+    return 0
+  fi
+  return "${MOCK_EXIT:-0}"
+}
+
+reset_logs() {
+  rm -f "$WORK/args" "$WORK/wgetrc-path" "$WORK/wgetrc" "$WORK/wgetrc-mode"
+}
+
+assert_cleaned_up() {
+  [ -n "$(cat "$WORK/wgetrc-path")" ] || die "$1: expected WGETRC to be set for wget, got it empty"
+  [ ! -e "$(cat "$WORK/wgetrc-path")" ] || die "$1: expected the config file to be removed, got $(cat "$WORK/wgetrc-path") left behind"
+  [ -z "$(ls -A "$WORK/tmp")" ] || die "$1: expected \$TMPDIR to be empty, got: $(ls -A "$WORK/tmp")"
+}
+
+# given no wgetrc of the user's
+reset_logs
+nvm_wget_with_auth_header 'Bearer test-token' -q -O - 'https://example.com/dist/index.tab'
+EXIT_CODE=$?
+[ "$EXIT_CODE" = 0 ] || die "no wgetrc: expected exit code 0, got $EXIT_CODE"
+# then the header is the only line of the config
+[ "$(cat "$WORK/wgetrc")" = 'header = Authorization: Bearer test-token' ] || die "no wgetrc: expected only the header in the config, got >$(cat "$WORK/wgetrc")<"
+# and the remaining arguments, without the header, go to nvm_wget_same_origin
+EXPECTED_ARGS='-q
+-O
+-
+https://example.com/dist/index.tab'
+[ "$(cat "$WORK/args")" = "$EXPECTED_ARGS" ] || die "no wgetrc: expected args >$EXPECTED_ARGS<, got >$(cat "$WORK/args")<"
+! grep -q 'test-token' "$WORK/args" || die "no wgetrc: expected the credential not to be an argument, got >$(cat "$WORK/args")<"
+# in a file in $TMPDIR that only the user can read
+case "$(cat "$WORK/wgetrc-path")" in
+  "$WORK/tmp/nvm-wgetrc."*) ;;
+  *) die "no wgetrc: expected the config file in \$TMPDIR, got $(cat "$WORK/wgetrc-path")" ;;
+esac
+[ "$(cat "$WORK/wgetrc-mode")" = '-rw-------' ] || die "no wgetrc: expected mode -rw-------, got $(cat "$WORK/wgetrc-mode")"
+assert_cleaned_up 'no wgetrc'
+# and WGETRC does not reach the caller
+[ -z "${WGETRC+set}" ] || die "no wgetrc: expected WGETRC to stay unset, got >${WGETRC}<"
+
+# given wget's exit code
+reset_logs
+MOCK_EXIT=8
+nvm_wget_with_auth_header 'Bearer test-token' 'https://example.com/dist/index.tab'
+EXIT_CODE=$?
+unset MOCK_EXIT
+# then it is returned
+[ "$EXIT_CODE" = 8 ] || die "wget failure: expected exit code 8, got $EXIT_CODE"
+assert_cleaned_up 'wget failure'
+
+# given the user's ~/.wgetrc, with no trailing newline
+reset_logs
+printf 'tries = 7' > "$HOME/.wgetrc"
+nvm_wget_with_auth_header 'Bearer test-token' 'https://example.com/dist/index.tab' || die 'with ~/.wgetrc: expected exit code 0, got nonzero'
+# then its settings are kept, and the header is on a line of its own after them
+EXPECTED_RC='tries = 7
+header = Authorization: Bearer test-token'
+[ "$(cat "$WORK/wgetrc")" = "$EXPECTED_RC" ] || die "with ~/.wgetrc: expected >$EXPECTED_RC<, got >$(cat "$WORK/wgetrc")<"
+assert_cleaned_up 'with ~/.wgetrc'
+[ "$(cat "$HOME/.wgetrc")" = 'tries = 7' ] || die "with ~/.wgetrc: expected ~/.wgetrc unchanged, got >$(cat "$HOME/.wgetrc")<"
+
+# given $WGETRC naming the user's config, alongside a ~/.wgetrc
+reset_logs
+printf 'timeout = 3\n' > "$WORK/custom-wgetrc"
+WGETRC="$WORK/custom-wgetrc"
+export WGETRC
+nvm_wget_with_auth_header 'Bearer test-token' 'https://example.com/dist/index.tab' || die 'with $WGETRC: expected exit code 0, got nonzero'
+# then $WGETRC is the one copied, not ~/.wgetrc
+EXPECTED_RC='timeout = 3
+
+header = Authorization: Bearer test-token'
+[ "$(cat "$WORK/wgetrc")" = "$EXPECTED_RC" ] || die "with \$WGETRC: expected >$EXPECTED_RC<, got >$(cat "$WORK/wgetrc")<"
+assert_cleaned_up 'with $WGETRC'
+# and the caller's WGETRC is unchanged
+[ "${WGETRC-}" = "$WORK/custom-wgetrc" ] || die "with \$WGETRC: expected WGETRC to stay $WORK/custom-wgetrc, got >${WGETRC-}<"
+[ "$(cat "$WORK/custom-wgetrc")" = 'timeout = 3' ] || die "with \$WGETRC: expected it unchanged, got >$(cat "$WORK/custom-wgetrc")<"
+
+# given $WGETRC naming a file that does not exist
+reset_logs
+WGETRC="$WORK/missing-wgetrc"
+nvm_wget_with_auth_header 'Bearer test-token' 'https://example.com/dist/index.tab' || die 'with a missing $WGETRC: expected exit code 0, got nonzero'
+# then only the header is in the config; ~/.wgetrc is not used in its place
+[ "$(cat "$WORK/wgetrc")" = 'header = Authorization: Bearer test-token' ] || die "with a missing \$WGETRC: expected only the header, got >$(cat "$WORK/wgetrc")<"
+assert_cleaned_up 'with a missing $WGETRC'
+unset WGETRC
+rm -f "$HOME/.wgetrc"
+
+# given a header value with shell metacharacters
+reset_logs
+nvm_wget_with_auth_header 'Bearer $HOME `id` $(id) *' 'https://example.com/dist/index.tab' || die 'metacharacters: expected exit code 0, got nonzero'
+# then it is written verbatim
+[ "$(cat "$WORK/wgetrc")" = 'header = Authorization: Bearer $HOME `id` $(id) *' ] || die "metacharacters: expected the header verbatim, got >$(cat "$WORK/wgetrc")<"
+assert_cleaned_up 'metacharacters'
+
+# given that the temporary file cannot be created
+reset_logs
+TMPDIR="$WORK/nonexistent"
+ERR="$(nvm_wget_with_auth_header 'Bearer test-token' 'https://example.com/dist/index.tab' 2>&1 >/dev/null)"
+EXIT_CODE=$?
+TMPDIR="$WORK/tmp"
+# then it fails, says why, and never runs wget
+[ "$EXIT_CODE" = 1 ] || die "no temporary file: expected exit code 1, got $EXIT_CODE"
+case "$ERR" in
+  *'unable to create a temporary file for $NVM_AUTH_HEADER'*) ;;
+  *) die "no temporary file: expected an error about the temporary file, got >$ERR<" ;;
+esac
+[ ! -e "$WORK/args" ] || die "no temporary file: expected wget not to run, got args >$(cat "$WORK/args")<"
+# and stops there, before trying to write the config
+[ "$(printf '%s\n' "$ERR" | tail -n 1)" = 'unable to create a temporary file for $NVM_AUTH_HEADER' ] || die "no temporary file: expected its error to be the last thing printed, got >$ERR<"
+
+# given that $TMPDIR is unset or empty
+for TMPDIR_STATE in unset empty; do
+  reset_logs
+  if [ "$TMPDIR_STATE" = unset ]; then
+    unset TMPDIR
+  else
+    TMPDIR=''
+  fi
+  nvm_wget_with_auth_header 'Bearer test-token' 'https://example.com/dist/index.tab'
+  EXIT_CODE=$?
+  TMPDIR="$WORK/tmp"
+  export TMPDIR
+  # then the config file goes in /tmp, and is removed afterwards
+  [ "$EXIT_CODE" = 0 ] || die "$TMPDIR_STATE \$TMPDIR: expected exit code 0, got $EXIT_CODE"
+  case "$(cat "$WORK/wgetrc-path")" in
+    /tmp/nvm-wgetrc.*) ;;
+    *) die "$TMPDIR_STATE \$TMPDIR: expected the config file in /tmp, got >$(cat "$WORK/wgetrc-path")<" ;;
+  esac
+  [ "$(cat "$WORK/wgetrc")" = 'header = Authorization: Bearer test-token' ] || die "$TMPDIR_STATE \$TMPDIR: expected only the header in the config, got >$(cat "$WORK/wgetrc")<"
+  [ ! -e "$(cat "$WORK/wgetrc-path")" ] || die "$TMPDIR_STATE \$TMPDIR: expected the config file to be removed, got $(cat "$WORK/wgetrc-path") left behind"
+done
+
+# given that the download is interrupted
+for SIGNAL_CODE in HUP:129 INT:130 TERM:143; do
+  reset_logs
+  MOCK_KILL="${SIGNAL_CODE%%:*}"
+  nvm_wget_with_auth_header 'Bearer test-token' 'https://example.com/dist/index.tab'
+  EXIT_CODE=$?
+  unset MOCK_KILL
+  # then the config file is removed, and the signal's exit code is returned
+  [ "$EXIT_CODE" = "${SIGNAL_CODE#*:}" ] || die "SIG${SIGNAL_CODE%%:*}: expected exit code ${SIGNAL_CODE#*:}, got $EXIT_CODE"
+  assert_cleaned_up "SIG${SIGNAL_CODE%%:*}"
+done
+
+cleanup

@@ -1,0 +1,87 @@
+#!/bin/sh
+
+WORK="$PWD/nvm_download-auth-argv-work.$$"
+TEST_BIN="$WORK/bin"
+ARGV_LOG="$WORK/argv.log"
+STDIN_LOG="$WORK/stdin.log"
+WGETRC_LOG="$WORK/wgetrc.log"
+WGETRC_PATH_LOG="$WORK/wgetrc-path.log"
+WGETRC_MODE_LOG="$WORK/wgetrc-mode.log"
+OLDHOME="$HOME"
+
+cleanup() {
+  unset -f die cleanup nvm_has_executable
+  unset NVM_AUTH_HEADER WGET_VERSION
+  rm -rf "$WORK"
+  export PATH="$OLDPATH"
+  HOME="$OLDHOME"
+  export HOME
+}
+die () { echo "$@" ; cleanup ; exit 1; }
+
+\. ../../../nvm.sh
+
+\. ../../common.sh
+
+OLDPATH="$PATH"
+
+# fake curl: record every argument, and what it is given on stdin
+make_fake_curl "$TEST_BIN" 'for a in "$@"; do printf "%s\n" "$a"; done > "$ARGV_LOG"
+cat > "$STDIN_LOG"'
+VERSION_MESSAGE="curl 7.99.0 (fake)"
+
+# fake GNU Wget: record every argument, and the config file $WGETRC names
+{
+  echo '#!/bin/sh'
+  echo 'if [ "$1" = --version ]; then echo "GNU Wget 1.21.2 built on linux-gnu."; exit 0; fi'
+  echo 'for a in "$@"; do printf "%s\n" "$a"; done > "$ARGV_LOG"'
+  echo 'printf "%s\n" "${WGETRC-}" > "$WGETRC_PATH_LOG"'
+  echo 'cat "${WGETRC:-/dev/null}" > "$WGETRC_LOG"'
+  echo 'ls -l "${WGETRC:-/dev/null}" | cut -c1-10 > "$WGETRC_MODE_LOG"'
+  echo 'exit 0'
+} > "$TEST_BIN/wget"
+chmod +x "$TEST_BIN/wget"
+
+export ARGV_LOG STDIN_LOG WGETRC_LOG WGETRC_PATH_LOG WGETRC_MODE_LOG
+export PATH="$TEST_BIN:$OLDPATH"
+
+NVM_AUTH_HEADER='Bearer test-token'
+export NVM_AUTH_HEADER
+
+# given curl
+# when nvm_download sends a credential
+nvm_download -L -s 'https://nodejs.org/dist/index.tab' -o - || die 'nvm_download (curl) returned nonzero'
+# then it is not an argument, which every local user can read in the process list
+! grep -q 'test-token' "$ARGV_LOG" || die "curl received the credential as an argument; got: $(cat "$ARGV_LOG")"
+# but a header in the config curl reads from stdin
+grep -Fxqe '--config' "$ARGV_LOG" || die "curl was not told to read a config; got: $(cat "$ARGV_LOG")"
+[ "$(cat "$STDIN_LOG")" = 'header = "Authorization: Bearer test-token"' ] || die "curl did not get the header as config; got: $(cat "$STDIN_LOG")"
+
+# given a credential with a line break in it
+NVM_AUTH_HEADER="$(printf 'Bearer test-token\noutput = /tmp/nvm-pwned')"
+nvm_download -L -s 'https://nodejs.org/dist/index.tab' -o - || die 'nvm_download (curl) returned nonzero for a line break'
+# then it cannot add another option to the config
+[ "$(wc -l < "$STDIN_LOG")" -eq 1 ] || die "a line break in the credential reached curl's config; got: $(cat "$STDIN_LOG")"
+NVM_AUTH_HEADER='Bearer test-token'
+
+# given only GNU Wget, and the user's own ~/.wgetrc
+nvm_has_executable() { [ "$1" != curl ] && command -v "$1" >/dev/null 2>&1; }
+HOME="$WORK/home"
+export HOME
+mkdir -p "$HOME"
+printf 'tries = 7' > "$HOME/.wgetrc"
+# when nvm_download sends a credential
+nvm_download -L -s 'https://nodejs.org/dist/index.tab' -o - || die 'nvm_download (wget) returned nonzero'
+# then it is not an argument
+! grep -q 'test-token' "$ARGV_LOG" || die "wget received the credential as an argument; got: $(cat "$ARGV_LOG")"
+# but a header in a config file only the user can read, after the user's own settings
+[ "$(cat "$WGETRC_MODE_LOG")" = '-rw-------' ] || die "the wget config file is readable by others: $(cat "$WGETRC_MODE_LOG")"
+[ "$(sed -n 1p "$WGETRC_LOG")" = 'tries = 7' ] || die "the user's ~/.wgetrc was not kept; got: $(cat "$WGETRC_LOG")"
+[ "$(sed -n '$p' "$WGETRC_LOG")" = 'header = Authorization: Bearer test-token' ] || die "wget did not get the header as config; got: $(cat "$WGETRC_LOG")"
+# which is gone once wget is done
+[ -n "$(cat "$WGETRC_PATH_LOG")" ] || die 'wget was not given a config file'
+[ ! -e "$(cat "$WGETRC_PATH_LOG")" ] || die "the wget config file was left behind: $(cat "$WGETRC_PATH_LOG")"
+# and $WGETRC is not left set in the shell
+[ -z "${WGETRC-}" ] || die "WGETRC was left set to ${WGETRC}"
+
+cleanup

@@ -219,11 +219,18 @@ nvm_download() {
     return 0
   fi
 
+  # every local user can read a process's arguments (`ps`, /proc/<pid>/cmdline),
+  # so the credential goes to the downloader in a config file, not an argument
   if [ -n "${sanitized_header}" ]; then
-    if [ "${NVM_DOWNLOADER}" = 'wget' ] && nvm_wget_is_gnu; then
-      nvm_wget_same_origin "${sanitized_header}" "$@"
+    if [ "${NVM_DOWNLOADER}" = 'curl' ]; then
+      nvm_echo "header = \"Authorization: ${sanitized_header}\"" | command curl "$@" --config -
       return $?
     fi
+    if nvm_wget_is_gnu; then
+      nvm_wget_with_auth_header "${sanitized_header}" "$@"
+      return $?
+    fi
+    # other wgets, like BusyBox's, read no config file
     set -- "$@" --header "Authorization: ${sanitized_header}"
   fi
 
@@ -243,15 +250,39 @@ nvm_url_origin() {
 }
 
 # args: sanitized Authorization header value, wget arguments
+# GNU Wget only reads a config file that is a regular file, so the header goes
+# in a private temporary one; it replaces ~/.wgetrc, so that is copied into it.
+nvm_wget_with_auth_header() {
+  (
+    NVM_WGETRC="$(command mktemp "${TMPDIR:-/tmp}/nvm-wgetrc.XXXXXX")" || {
+      nvm_err 'unable to create a temporary file for $NVM_AUTH_HEADER'
+      exit 1
+    }
+    trap 'command rm -f "${NVM_WGETRC}"' EXIT
+    trap 'exit 129' HUP
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    {
+      if [ -r "${WGETRC:-${HOME-}/.wgetrc}" ]; then
+        command cat "${WGETRC:-${HOME-}/.wgetrc}"
+        nvm_echo
+      fi
+      nvm_echo "header = Authorization: ${1-}"
+    } > "${NVM_WGETRC}" || exit 1
+    shift
+    WGETRC="${NVM_WGETRC}"
+    export WGETRC
+    nvm_wget_same_origin "$@"
+  )
+}
+
+# args: wget arguments; the header comes from $WGETRC
 # `curl -L` (7.58.0 and later) does not send a custom Authorization header to a
-# redirect target on another host, but wget sends `--header` along to every
+# redirect target on another host, but wget sends its headers along to every
 # one. So GNU Wget is stopped at every redirect, which is then followed only if
 # it stays on the same origin (scheme, host, and port). Other wgets, like
 # BusyBox's, cannot be stopped from following redirects.
 nvm_wget_same_origin() {
-  local NVM_WGET_HEADER
-  NVM_WGET_HEADER="Authorization: ${1-}"
-  shift
   local NVM_WGET_URL
   NVM_WGET_URL=''
   local NVM_WGET_ARG
@@ -268,13 +299,13 @@ nvm_wget_same_origin() {
   local NVM_WGET_REDIRECTS
   NVM_WGET_REDIRECTS=0
   while :; do
-    command wget --max-redirect=0 "$@" --header "${NVM_WGET_HEADER}"
+    command wget --max-redirect=0 "$@"
     NVM_WGET_EXIT_CODE=$?
     # wget exits with 8 for an HTTP error status, including a redirect it did not follow
     if [ "${NVM_WGET_EXIT_CODE}" != 8 ] || [ -z "${NVM_WGET_URL}" ]; then
       return "${NVM_WGET_EXIT_CODE}"
     fi
-    NVM_WGET_LOCATION="$(command wget --max-redirect=0 -q -S -O /dev/null "${NVM_WGET_URL}" --header "${NVM_WGET_HEADER}" 2>&1 \
+    NVM_WGET_LOCATION="$(command wget --max-redirect=0 -q -S -O /dev/null "${NVM_WGET_URL}" 2>&1 \
       | command awk 'tolower($1) == "location:" { print $2; exit }' | command tr -d '\r')"
     case "${NVM_WGET_LOCATION}" in
       '') return "${NVM_WGET_EXIT_CODE}" ;;
@@ -6654,7 +6685,7 @@ nvm() {
         nvm_node_version_has_solaris_binary nvm_iojs_version_has_solaris_binary \
         nvm_curl_libz_support nvm_command_info nvm_is_zsh nvm_stdout_is_terminal \
         nvm_npmrc_bad_news_bears nvm_sanitize_auth_header nvm_auth_header_applies_to \
-        nvm_wget_is_gnu nvm_url_origin nvm_wget_same_origin \
+        nvm_wget_is_gnu nvm_url_origin nvm_wget_same_origin nvm_wget_with_auth_header \
         nvm_get_colors nvm_set_colors nvm_print_color_code nvm_wrap_with_color_code \
         nvm_print_color_legend \
         nvm_echo_with_colors nvm_err_with_colors \

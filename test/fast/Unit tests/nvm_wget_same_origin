@@ -61,11 +61,11 @@ chmod +x "$TEST_BIN/wget"
 export CALL_LOG
 export PATH="$TEST_BIN:$OLDPATH"
 
-# the Authorization header goes along with every request
-HEADER='<--header><Authorization: Bearer test-token>'
+# the Authorization header comes from $WGETRC, never from an argument
+HEADER=''
 run() {
   : > "$CALL_LOG"
-  try_err nvm_wget_same_origin 'Bearer test-token' "$@"
+  try_err nvm_wget_same_origin "$@"
 }
 
 # args: description, expected calls (one per argument)
