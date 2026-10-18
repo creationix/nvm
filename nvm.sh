@@ -880,6 +880,10 @@ nvm_find_nvmrc() {
 }
 
 nvm_nvmrc_invalid_msg() {
+  if [ "${NVM_SILENT:-0}" -eq 1 ]; then
+    return 0
+  fi
+
   local error_text
   error_text="invalid .nvmrc!
 all non-commented content (anything after # is a comment) must be either:
