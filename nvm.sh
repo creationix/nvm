@@ -3294,7 +3294,9 @@ nvm_print_implicit_alias() {
   esac
   local MINOR
   local STABLE
+  STABLE=''
   local UNSTABLE
+  UNSTABLE=''
   local MOD
   local NORMALIZED_VERSION
 
