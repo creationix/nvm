@@ -11,6 +11,7 @@ die () { echo "$@" ; cleanup ; exit 1; }
 
 # The awk command from nvm_get_default_packages
 AWK_SCRIPT='
+  { sub(/\r$/, "") }
   /^[ \t]*#/ { next }
   /^[ \t]*$/ { next }
   /[ \t]/ && !/^[ \t]*#/ {
@@ -33,14 +34,21 @@ stevemao/left-pad"
 
 EXPECTED_OUTPUT="rimraf object-inspect@1.0.2 stevemao/left-pad"
 
+# The same input, with CRLF line endings
+CRLF_INPUT='rimraf\r\nobject-inspect@1.0.2\r\n\r\n# commented-package\r\n\r\nstevemao/left-pad\r\n'
+
 # Test with system awk
 OUTPUT="$(printf '%s\n' "${TEST_INPUT}" | awk "${AWK_SCRIPT}")"
 [ "${OUTPUT}" = "${EXPECTED_OUTPUT}" ] || die "system awk: expected >${EXPECTED_OUTPUT}<, got >${OUTPUT}<"
+OUTPUT="$(printf %b "${CRLF_INPUT}" | awk "${AWK_SCRIPT}")"
+[ "${OUTPUT}" = "${EXPECTED_OUTPUT}" ] || die "system awk, CRLF: expected >${EXPECTED_OUTPUT}<, got >${OUTPUT}<"
 
 # Test with mawk explicitly if available
 if command -v mawk > /dev/null 2>&1; then
   OUTPUT="$(printf '%s\n' "${TEST_INPUT}" | mawk "${AWK_SCRIPT}")"
   [ "${OUTPUT}" = "${EXPECTED_OUTPUT}" ] || die "mawk: expected >${EXPECTED_OUTPUT}<, got >${OUTPUT}<"
+  OUTPUT="$(printf %b "${CRLF_INPUT}" | mawk "${AWK_SCRIPT}")"
+  [ "${OUTPUT}" = "${EXPECTED_OUTPUT}" ] || die "mawk, CRLF: expected >${EXPECTED_OUTPUT}<, got >${OUTPUT}<"
   echo "mawk test passed"
 else
   echo "mawk not available, skipping mawk-specific test"
@@ -50,6 +58,8 @@ fi
 if command -v gawk > /dev/null 2>&1; then
   OUTPUT="$(printf '%s\n' "${TEST_INPUT}" | gawk "${AWK_SCRIPT}")"
   [ "${OUTPUT}" = "${EXPECTED_OUTPUT}" ] || die "gawk: expected >${EXPECTED_OUTPUT}<, got >${OUTPUT}<"
+  OUTPUT="$(printf %b "${CRLF_INPUT}" | gawk "${AWK_SCRIPT}")"
+  [ "${OUTPUT}" = "${EXPECTED_OUTPUT}" ] || die "gawk, CRLF: expected >${EXPECTED_OUTPUT}<, got >${OUTPUT}<"
   echo "gawk test passed"
 else
   echo "gawk not available, skipping gawk-specific test"
