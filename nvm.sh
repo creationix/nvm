@@ -2479,10 +2479,15 @@ nvm_ls() {
       *-*) NVM_PRERELEASE_PATTERN="${PATTERN}" ;;
     esac
     if [ -n "${NVM_DIRS_TO_SEARCH1}${NVM_DIRS_TO_SEARCH2}${NVM_DIRS_TO_SEARCH3}" ]; then
+      # the directories are matched literally, so escape characters that are special in sed
+      local NVM_DIR_SED
+      NVM_DIR_SED="$(nvm_echo "${NVM_DIR}" | command sed 's/[][\.*^$#]/\\&/g')"
+      local NVM_VERSION_DIR_IOJS_SED
+      NVM_VERSION_DIR_IOJS_SED="$(nvm_echo "${NVM_VERSION_DIR_IOJS}" | command sed 's/[][\.*^$#]/\\&/g')"
       VERSIONS="$(command find "${NVM_DIRS_TO_SEARCH1}"/* "${NVM_DIRS_TO_SEARCH2}"/* "${NVM_DIRS_TO_SEARCH3}"/* -name . -o -type d -prune -o -path "${PATTERN}*" \
         | command sed -e "
-            s#${NVM_VERSION_DIR_IOJS}/#versions/${NVM_IOJS_PREFIX}/#;
-            s#^${NVM_DIR}/##;
+            s#${NVM_VERSION_DIR_IOJS_SED}/#versions/${NVM_IOJS_PREFIX}/#;
+            s#^${NVM_DIR_SED}/##;
             \\#^[^v]# d;
             \\#^versions\$# d;
             s#^versions/##;

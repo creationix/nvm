@@ -1,0 +1,37 @@
+#!/bin/sh
+
+die () { echo "$@" ; cleanup ; exit 1; }
+
+cleanup() {
+  rm -rf "${TEST_DIR-}"
+  unset TEST_DIR NVM_DIR DIR
+}
+
+: nvm.sh
+\. ../../../nvm.sh
+
+\. ../../common.sh
+
+TEST_DIR="${PWD}/nvm_ls_literal_nvm_dir_tmp"
+
+# each of these made sed match no installed versions, or fail to compile
+for DIR in 'nvm\test' 'a[x]b' 'h#sh' 'st*r'; do
+  NVM_DIR="${TEST_DIR}/${DIR}"
+  for VERSION in versions/node/v24.11.0 v0.10.5 versions/io.js/v1.0.0; do
+    mkdir -p "${NVM_DIR}/${VERSION}/bin" || die "failed to create ${VERSION} dir under ${NVM_DIR}"
+    make_echo "${NVM_DIR}/${VERSION}/bin/node" "${VERSION##*/}" || die "failed to create ${VERSION} node binary under ${NVM_DIR}"
+  done
+
+  # one version per layout; no pattern, or `v`, would also list a system node
+  try nvm_ls 0.10
+  [ "_${CAPTURED_STDOUT}" = '_v0.10.5' ] || die "\`nvm_ls 0.10\` under \`${NVM_DIR}\` should output >v0.10.5<; got >${CAPTURED_STDOUT}<"
+
+  try nvm_ls 24
+  [ "_${CAPTURED_STDOUT}" = '_v24.11.0' ] || die "\`nvm_ls 24\` under \`${NVM_DIR}\` should output >v24.11.0<; got >${CAPTURED_STDOUT}<"
+
+  try nvm_ls iojs
+  [ "_${CAPTURED_STDOUT}" = '_iojs-v1.0.0' ] || die "\`nvm_ls iojs\` under \`${NVM_DIR}\` should output >iojs-v1.0.0<; got >${CAPTURED_STDOUT}<"
+done
+unset VERSION
+
+cleanup
