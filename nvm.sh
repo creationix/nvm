@@ -942,11 +942,43 @@ EOF
   nvm_echo "${unpaired_line}"
 }
 
+nvm_is_version_or_alias() {
+  case "${1-}" in
+    system | 'lts/*') return 0 ;;
+    lts/-*)
+      case "${1#lts/-}" in
+        '' | *[!0-9]*) return 1 ;;
+      esac
+      return 0
+    ;;
+    lts/*)
+      case "${1#lts/}" in
+        '' | *[!a-z]*) return 1 ;;
+      esac
+      return 0
+    ;;
+  esac
+  nvm_is_valid_version "${1-}" || nvm_alias "${1-}" > /dev/null 2>&1
+}
+
 nvm_process_nvmrc() {
   local NVMRC_PATH
   NVMRC_PATH="$1"
 
-  nvm_process_nvmrc_content "$(command cat "${NVMRC_PATH}")"
+  if [ ! -L "${NVMRC_PATH}" ]; then
+    nvm_process_nvmrc_content "$(command cat "${NVMRC_PATH}")"
+    return
+  fi
+
+  # a symlink can point at any file, so never print its content,
+  # and only accept a version or an existing alias, which would be printed later
+  local NVMRC_VERSION
+  if ! NVMRC_VERSION="$(nvm_process_nvmrc_content "$(command cat "${NVMRC_PATH}")" 2>/dev/null)" \
+    || ! nvm_is_version_or_alias "${NVMRC_VERSION}"; then
+    nvm_err "invalid .nvmrc! '${NVMRC_PATH}' is a symbolic link, so it must contain a version or an alias name; its content is not shown."
+    return 1
+  fi
+  nvm_echo "${NVMRC_VERSION}"
 }
 
 nvm_rc_version() {
@@ -6533,7 +6565,7 @@ nvm() {
         nvm_print_color_legend \
         nvm_echo_with_colors nvm_err_with_colors \
         nvm_get_artifact_compression nvm_install_binary_extract nvm_extract_tarball \
-        nvm_process_nvmrc nvm_process_nvmrc_content nvm_nvmrc_invalid_msg \
+        nvm_process_nvmrc nvm_process_nvmrc_content nvm_nvmrc_invalid_msg nvm_is_version_or_alias \
         nvm_write_nvmrc nvm_hash_reset \
         >/dev/null 2>&1
       unset NVM_NODEJS_ORG_MIRROR NVM_IOJS_ORG_MIRROR NVM_DIR \
