@@ -1,0 +1,48 @@
+#!/bin/sh
+
+die () { echo "$@" ; cleanup ; exit 1; }
+
+cleanup() {
+  cd "${ORIG_PWD}" || :
+  nvm deactivate > /dev/null 2>&1
+  rm -rf "${TEST_DIR-}" "${NVM_DIR}/${TEST_VERSION}"
+  unset TEST_DIR TEST_VERSION ORIG_PWD NVM_SILENT
+}
+
+: nvm.sh
+\. ../../../nvm.sh
+
+\. ../../common.sh
+
+ORIG_PWD="${PWD}"
+TEST_VERSION='v0.2.4'
+make_fake_node "${TEST_VERSION}" || die 'failed to create a fake node'
+
+TEST_DIR="${PWD}/nvm_write_nvmrc_symlink_tmp"
+mkdir -p "${TEST_DIR}/project" || die 'failed to create test dirs'
+echo 'KEEPME' > "${TEST_DIR}/target"
+ln -s ../target "${TEST_DIR}/project/.nvmrc" || die 'failed to create the symlink'
+
+cd "${TEST_DIR}/project" || die 'failed to enter the project dir'
+
+try_err nvm_write_nvmrc "${TEST_VERSION}"
+[ "${CAPTURED_EXIT_CODE}" = 3 ] || die "expected exit code 3 for a symlinked .nvmrc; got ${CAPTURED_EXIT_CODE}"
+[ "${CAPTURED_STDERR}" = "Warning: Not writing version number (${TEST_VERSION}) to .nvmrc, because it is a symbolic link" ] || die "expected a warning about the symlink; got \`${CAPTURED_STDERR}\`"
+[ "$(cat ../target)" = 'KEEPME' ] || die "expected the symlink's target to be unchanged; got \`$(cat ../target)\`"
+[ -L .nvmrc ] || die 'expected .nvmrc to still be a symlink'
+
+nvm use --save "${TEST_VERSION}" > /dev/null 2>&1
+[ "$(cat ../target)" = 'KEEPME' ] || die "expected \`nvm use --save\` to leave the symlink's target unchanged; got \`$(cat ../target)\`"
+
+rm .nvmrc
+ln -s ../dangling .nvmrc || die 'failed to create the dangling symlink'
+try_err nvm_write_nvmrc "${TEST_VERSION}"
+[ "${CAPTURED_EXIT_CODE}" = 3 ] || die "expected exit code 3 for a dangling symlinked .nvmrc; got ${CAPTURED_EXIT_CODE}"
+[ ! -e ../dangling ] || die "expected a dangling symlink's target to not be created"
+
+export NVM_SILENT=1
+try_err nvm_write_nvmrc "${TEST_VERSION}"
+[ -z "${CAPTURED_STDERR}" ] || die "expected NVM_SILENT=1 to silence the warning; got \`${CAPTURED_STDERR}\`"
+unset NVM_SILENT
+
+cleanup

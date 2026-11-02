@@ -4376,6 +4376,13 @@ nvm_write_nvmrc() {
   if [ "${VERSION_STRING}" = '∞' ] || [ "${VERSION_STRING}" = 'N/A' ]; then
     return 1
   fi
+  # writing through a symlink would overwrite its target, which can be any file
+  if [ -L "$PWD"/.nvmrc ]; then
+    if [ "${NVM_SILENT:-0}" -ne 1 ]; then
+      nvm_err "Warning: Not writing version number ($VERSION_STRING) to .nvmrc, because it is a symbolic link"
+    fi
+    return 3
+  fi
   echo "${VERSION_STRING}" | tee "$PWD"/.nvmrc > /dev/null || {
     if [ "${NVM_SILENT:-0}" -ne 1 ]; then
       nvm_err "Warning: Unable to write version number ($VERSION_STRING) to .nvmrc"
