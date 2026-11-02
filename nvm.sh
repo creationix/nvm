@@ -5067,8 +5067,9 @@ nvm() {
             LTS="${1##--lts=}"
             shift
           ;;
-          --only=*)
-            NVM_ONLY_FLAG="${1#--only=}"
+          --only | --only=*)
+            NVM_ONLY_FLAG="${1#--only}"
+            NVM_ONLY_FLAG="${NVM_ONLY_FLAG#=}"
             NVM_ONLY_FLAG_COUNT=$((NVM_ONLY_FLAG_COUNT + 1))
             shift
           ;;
@@ -5142,8 +5143,9 @@ nvm() {
       local NVM_INSTALL_ARG
       for NVM_INSTALL_ARG in "$@"; do
         case "${NVM_INSTALL_ARG}" in
-          --only=*)
-            NVM_ONLY_FLAG="${NVM_INSTALL_ARG#--only=}"
+          --only | --only=*)
+            NVM_ONLY_FLAG="${NVM_INSTALL_ARG#--only}"
+            NVM_ONLY_FLAG="${NVM_ONLY_FLAG#=}"
             NVM_ONLY_FLAG_COUNT=$((NVM_ONLY_FLAG_COUNT + 1))
           ;;
           ---*)
@@ -5373,7 +5375,7 @@ nvm() {
             fi
             NVM_WRITE_TO_NVMRC=1
           ;;
-          --only=*) ;;
+          --only | --only=*) ;;
           *)
             ADDITIONAL_PARAMETERS="${ADDITIONAL_PARAMETERS} $1"
           ;;
@@ -5576,8 +5578,9 @@ nvm() {
       NVM_UNINSTALL_ARGS=0
       while [ $# -ne 0 ]; do
         case "${1}" in
-          --only=*)
-            NVM_ONLY_FLAG="${1#--only=}"
+          --only | --only=*)
+            NVM_ONLY_FLAG="${1#--only}"
+            NVM_ONLY_FLAG="${NVM_ONLY_FLAG#=}"
             NVM_ONLY_FLAG_COUNT=$((NVM_ONLY_FLAG_COUNT + 1))
           ;;
           *)
@@ -5790,8 +5793,9 @@ nvm() {
           ;;
           --lts) NVM_LTS='*' ;;
           --lts=*) NVM_LTS="${1##--lts=}" ;;
-          --only=*)
-            NVM_ONLY_FLAG="${1#--only=}"
+          --only | --only=*)
+            NVM_ONLY_FLAG="${1#--only}"
+            NVM_ONLY_FLAG="${NVM_ONLY_FLAG#=}"
             NVM_ONLY_FLAG_COUNT=$((NVM_ONLY_FLAG_COUNT + 1))
           ;;
           --save | -w)
@@ -5964,8 +5968,9 @@ nvm() {
           ;;
           --lts) NVM_LTS='*' ; shift ;;
           --lts=*) NVM_LTS="${1##--lts=}" ; shift ;;
-          --only=*)
-            NVM_ONLY_FLAG="${1#--only=}"
+          --only | --only=*)
+            NVM_ONLY_FLAG="${1#--only}"
+            NVM_ONLY_FLAG="${NVM_ONLY_FLAG#=}"
             NVM_ONLY_FLAG_COUNT=$((NVM_ONLY_FLAG_COUNT + 1))
             shift
           ;;
@@ -6074,8 +6079,9 @@ nvm() {
           --silent) NVM_SILENT=1 ; shift ;;
           --lts) NVM_LTS='*' ; shift ;;
           --lts=*) NVM_LTS="${1##--lts=}" ; shift ;;
-          --only=*)
-            NVM_ONLY_FLAG="${1#--only=}"
+          --only | --only=*)
+            NVM_ONLY_FLAG="${1#--only}"
+            NVM_ONLY_FLAG="${NVM_ONLY_FLAG#=}"
             NVM_ONLY_FLAG_COUNT=$((NVM_ONLY_FLAG_COUNT + 1))
             shift
           ;;
@@ -6172,8 +6178,9 @@ nvm() {
           --) ;;
           --no-colors) NVM_NO_COLORS="${1}" ;;
           --no-alias) NVM_NO_ALIAS="${1}" ;;
-          --only=*)
-            NVM_ONLY_FLAG="${1#--only=}"
+          --only | --only=*)
+            NVM_ONLY_FLAG="${1#--only}"
+            NVM_ONLY_FLAG="${NVM_ONLY_FLAG#=}"
             NVM_ONLY_FLAG_COUNT=$((NVM_ONLY_FLAG_COUNT + 1))
           ;;
           --*)
@@ -6224,8 +6231,9 @@ nvm() {
           --lts=*)
             NVM_LTS="${1##--lts=}"
           ;;
-          --only=*)
-            NVM_ONLY_FLAG="${1#--only=}"
+          --only | --only=*)
+            NVM_ONLY_FLAG="${1#--only}"
+            NVM_ONLY_FLAG="${NVM_ONLY_FLAG#=}"
             NVM_ONLY_FLAG_COUNT=$((NVM_ONLY_FLAG_COUNT + 1))
           ;;
           --no-colors) NVM_NO_COLORS="${1}" ;;
@@ -6289,8 +6297,9 @@ nvm() {
         case "${1}" in
           --silent) NVM_SILENT=1 ;;
           --) ;;
-          --only=*)
-            NVM_ONLY_FLAG="${1#--only=}"
+          --only | --only=*)
+            NVM_ONLY_FLAG="${1#--only}"
+            NVM_ONLY_FLAG="${NVM_ONLY_FLAG#=}"
             NVM_ONLY_FLAG_COUNT=$((NVM_ONLY_FLAG_COUNT + 1))
           ;;
           *) provided_version="${1-}" ;;
@@ -6389,8 +6398,9 @@ nvm() {
             esac
             NVM_ALIAS_FLAGS="${1}"
           ;;
-          --only=*)
-            NVM_ONLY_FLAG="${1#--only=}"
+          --only | --only=*)
+            NVM_ONLY_FLAG="${1#--only}"
+            NVM_ONLY_FLAG="${NVM_ONLY_FLAG#=}"
             NVM_ONLY_FLAG_COUNT=$((NVM_ONLY_FLAG_COUNT + 1))
           ;;
           --*)
@@ -6515,8 +6525,9 @@ nvm() {
       NVM_REINSTALL_ARGS=0
       while [ $# -ne 0 ]; do
         case "${1}" in
-          --only=*)
-            NVM_ONLY_FLAG="${1#--only=}"
+          --only | --only=*)
+            NVM_ONLY_FLAG="${1#--only}"
+            NVM_ONLY_FLAG="${NVM_ONLY_FLAG#=}"
             NVM_ONLY_FLAG_COUNT=$((NVM_ONLY_FLAG_COUNT + 1))
           ;;
           *)
@@ -6595,8 +6606,9 @@ nvm() {
       PATTERN=''
       while [ $# -gt 0 ]; do
         case "${1}" in
-          --only=*)
-            NVM_ONLY_FLAG="${1#--only=}"
+          --only | --only=*)
+            NVM_ONLY_FLAG="${1#--only}"
+            NVM_ONLY_FLAG="${NVM_ONLY_FLAG#=}"
             NVM_ONLY_FLAG_COUNT=$((NVM_ONLY_FLAG_COUNT + 1))
           ;;
           *) PATTERN="${PATTERN:-${1}}" ;;
@@ -6622,8 +6634,9 @@ nvm() {
           --lts=*)
             NVM_LTS="${1##--lts=}"
           ;;
-          --only=*)
-            NVM_ONLY_FLAG="${1#--only=}"
+          --only | --only=*)
+            NVM_ONLY_FLAG="${1#--only}"
+            NVM_ONLY_FLAG="${NVM_ONLY_FLAG#=}"
             NVM_ONLY_FLAG_COUNT=$((NVM_ONLY_FLAG_COUNT + 1))
           ;;
           --*)

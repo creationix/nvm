@@ -1,0 +1,65 @@
+#!/bin/sh
+
+die () { echo "$@" ; cleanup ; exit 1; }
+
+cleanup () {
+  NVM_DIR="${ORIG_NVM_DIR}"
+  rm -rf "${TMP_DIR}"
+}
+
+: nvm.sh
+\. ../../../nvm.sh
+
+\. ../../common.sh
+
+unset NVM_ONLY NVM_ONLY_SELECTED
+NVM_INDEX_NO_FETCH=1
+export NVM_INDEX_NO_FETCH
+nvm_download() { return 1; }
+TMP_DIR="$(mktemp -d)"
+ORIG_NVM_DIR="${NVM_DIR}"
+NVM_DIR="${TMP_DIR}"
+
+EXPECTED='Invalid `--only` value "": it must be a comma-separated list of any of: alpha, lts, non-lts, iojs'
+
+# args: the flag, then nvm's arguments, with `@` where the flag goes
+try_with_flag () {
+  FLAG="$1"
+  shift
+  ARG_COUNT=$#
+  for ARG in "$@"; do
+    if [ "${ARG}" = '@' ]; then
+      set -- "$@" "${FLAG}"
+    else
+      set -- "$@" "${ARG}"
+    fi
+  done
+  shift "${ARG_COUNT}"
+  COMMAND_LINE="nvm $*"
+  try_err nvm "$@"
+}
+
+# args: nvm's arguments, with `@` where `--only=` or `--only` goes
+check () {
+  for FLAG in --only= --only; do
+    try_with_flag "${FLAG}" "$@"
+    [ "_${CAPTURED_EXIT_CODE}" = '_55' ] || die "${COMMAND_LINE} exited ${CAPTURED_EXIT_CODE}, expected 55"
+    [ "_${CAPTURED_STDERR}" = "_${EXPECTED}" ] || die "${COMMAND_LINE} printed >${CAPTURED_STDERR}<, expected >${EXPECTED}<"
+  done
+}
+
+check install @ 20
+check install 20 @
+check uninstall @ 20
+check use @ 20
+check run @ 20 --version
+check exec @ 20 node --version
+check ls @
+check ls-remote @
+check which @ 20
+check alias foo @ 20
+check reinstall-packages @ 20
+check version @ 20
+check version-remote @ 20
+
+cleanup
