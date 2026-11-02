@@ -953,7 +953,7 @@ nvm_is_version_or_alias() {
     ;;
     lts/*)
       case "${1#lts/}" in
-        '' | *[!a-z]*) return 1 ;;
+        '' | *[![:lower:]]*) return 1 ;;
       esac
       return 0
     ;;
