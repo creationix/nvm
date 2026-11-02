@@ -19,6 +19,8 @@ jobs:
       with:
         allowed-endpoints:
           github.com:443
+          raw.githubusercontent.com:443
+          nodejs.org:443
           registry.npmjs.org:443
           api.github.com:443
     - uses: actions/checkout@v6
@@ -29,10 +31,10 @@ jobs:
 
     # pulls all tags (needed for lerna / semantic release to correctly version)
     - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
-    - uses: actions/setup-node@v6
+    - uses: ljharb/actions/node/install@main
+      name: 'nvm install lts/* && npm install'
       with:
         node-version: 'lts/*'
-    - run: npm install
     - run: npm run doctoc
     - name: commit changes
       uses: ljharb/actions-js-build/commit@v3+amendpush
