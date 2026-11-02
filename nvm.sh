@@ -2252,12 +2252,12 @@ nvm_filter_installed_versions() {
       return 3
     fi
   fi
-  command awk \
+  NVM_LTS_STATUS_PATH="$(nvm_lts_status_path)" command awk \
     -v only=",${NVM_ONLY_SELECTED:-${NVM_ONLY:-lts,non-lts,iojs}}," \
-    -v needs_lts_status="${NVM_NEEDS_LTS_STATUS}" \
-    -v record="$(nvm_lts_status_path)" '
+    -v needs_lts_status="${NVM_NEEDS_LTS_STATUS}" '
     BEGIN {
       if (needs_lts_status) {
+        record = ENVIRON["NVM_LTS_STATUS_PATH"];
         while ((getline line < record) > 0) {
           split(line, fields, " ");
           lts[fields[1]] = fields[2];
@@ -2589,7 +2589,8 @@ nvm_record_lts_status() {
   local NVM_LTS_STATUS_TMP
   NVM_LTS_STATUS_TMP="$(command mktemp "${NVM_LTS_STATUS_PATH}.XXXXXX" 2>/dev/null)" || return 1
   # anything without a full row, like an error page, is not an index
-  if command awk -v previous="${NVM_LTS_STATUS_PATH}" '
+  if NVM_LTS_STATUS_PATH="${NVM_LTS_STATUS_PATH}" command awk '
+    BEGIN { previous = ENVIRON["NVM_LTS_STATUS_PATH"] }
     NF >= 10 && $1 ~ /^v[0-9]+\.[0-9]+\.[0-9]+/ {
       if (!($1 in lts)) { versions[++rows] = $1 }
       lts[$1] = ($10 ~ /^-?$/ ? "-" : tolower($10));
@@ -2630,8 +2631,9 @@ nvm_filter_lts_versions() {
     nvm_err 'The LTS status of installed versions is not recorded yet; run `nvm ls-remote` to record it.'
     return 3
   fi
-  command awk -v lts="${1-}" -v record="$(nvm_lts_status_path)" '
+  NVM_LTS_STATUS_PATH="$(nvm_lts_status_path)" command awk -v lts="${1-}" '
     BEGIN {
+      record = ENVIRON["NVM_LTS_STATUS_PATH"];
       while ((getline line < record) > 0) {
         split(line, fields, " ");
         status[fields[1]] = fields[2];
@@ -6548,11 +6550,11 @@ nvm_get_default_packages() {
   local NVM_DEFAULT_PACKAGE_FILE
   NVM_DEFAULT_PACKAGE_FILE="${NVM_DIR}/default-packages"
   if [ -f "${NVM_DEFAULT_PACKAGE_FILE}" ]; then
-    command awk -v filename="${NVM_DEFAULT_PACKAGE_FILE}" '
+    command awk '
       /^[ \t]*#/ { next }                           # Skip lines that begin with #
       /^[ \t]*$/ { next }                           # Skip empty lines
       /[ \t]/ && !/^[ \t]*#/ {
-        print "Only one package per line is allowed in `" filename "`. Please remove any lines with multiple space-separated values." > "/dev/stderr"
+        print "Only one package per line is allowed in `" FILENAME "`. Please remove any lines with multiple space-separated values." > "/dev/stderr"
         err = 1
         exit 1
       }

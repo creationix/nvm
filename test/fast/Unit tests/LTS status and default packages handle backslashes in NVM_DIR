@@ -1,0 +1,51 @@
+#!/bin/sh
+
+ORIG_NVM_DIR="${NVM_DIR}"
+TMP_DIR=''
+
+cleanup () {
+  case "${TMP_DIR}" in
+    /*) rm -rf "${TMP_DIR}" ;;
+  esac
+  NVM_DIR="${ORIG_NVM_DIR}"
+  export NVM_DIR
+}
+
+die () { echo "$@" ; cleanup ; exit 1; }
+
+: nvm.sh
+\. ../../../nvm.sh
+
+TMP_DIR="$(mktemp -d)"
+
+row () {
+  printf '%s\t2024-01-01\tsrc\t-\t-\t-\t-\t-\t-\t%s\t-\n' "$1" "$2"
+}
+
+# awk's `-v` would turn these into a tab, a newline, and a single backslash
+for DIR in 'nvm\test' 'nvm\new' 'nvm\\dir'; do
+  NVM_DIR="${TMP_DIR}/${DIR}"
+  export NVM_DIR
+  mkdir -p "${NVM_DIR}" || die "could not create NVM_DIR ${NVM_DIR}"
+
+  { row v24.11.0 Krypton; row v24.0.0 -; } | nvm_record_lts_status || die "nvm_record_lts_status should record LTS status under ${NVM_DIR}"
+  # an index without LTS versions only merges into a record it can read
+  row v26.0.0 - | nvm_record_lts_status || die "nvm_record_lts_status should merge into the record under ${NVM_DIR}"
+
+  OUTPUT="$(printf 'v24.11.0\nv24.0.0\nv26.0.0\n' | nvm_filter_lts_versions '*')"
+  [ "${OUTPUT}" = 'v24.11.0' ] || die "nvm_filter_lts_versions should read the record under ${NVM_DIR}; got >${OUTPUT}<"
+  OUTPUT="$(printf 'v24.11.0\nv24.0.0\n' | nvm_filter_lts_versions krypton)"
+  [ "${OUTPUT}" = 'v24.11.0' ] || die "nvm_filter_lts_versions krypton should read the record under ${NVM_DIR}; got >${OUTPUT}<"
+
+  OUTPUT="$(printf 'v24.11.0\nv24.0.0\nv26.0.0\n' | NVM_ONLY=lts nvm_filter_installed_versions | tr '\n' ' ')"
+  [ "${OUTPUT}" = 'v24.11.0 ' ] || die "NVM_ONLY=lts nvm_filter_installed_versions should read the record under ${NVM_DIR}; got >${OUTPUT}<"
+  OUTPUT="$(printf 'v24.11.0\nv24.0.0\nv26.0.0\n' | NVM_ONLY=non-lts nvm_filter_installed_versions | tr '\n' ' ')"
+  [ "${OUTPUT}" = 'v24.0.0 v26.0.0 ' ] || die "NVM_ONLY=non-lts nvm_filter_installed_versions should read the record under ${NVM_DIR}; got >${OUTPUT}<"
+
+  printf 'yarn pnpm\n' > "${NVM_DIR}/default-packages"
+  OUTPUT="$(nvm_get_default_packages 2>&1)"
+  EXPECTED="Only one package per line is allowed in \`${NVM_DIR}/default-packages\`. Please remove any lines with multiple space-separated values."
+  nvm_echo "${OUTPUT}" | nvm_grep -qxF -e "${EXPECTED}" || die "nvm_get_default_packages should name the file under ${NVM_DIR}; got >${OUTPUT}<"
+done
+
+cleanup
