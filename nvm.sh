@@ -5083,6 +5083,15 @@ nvm() {
             NVM_ONLY_FLAG="${NVM_INSTALL_ARG#--only=}"
             NVM_ONLY_FLAG_COUNT=$((NVM_ONLY_FLAG_COUNT + 1))
           ;;
+          ---*)
+            nvm_err 'arguments with `---` are not supported - this is likely a typo'
+            return 55;
+          ;;
+          # these are checked, or used to find the version, before it is resolved
+          -s | -b | -j | --offline | --lts | --lts=*)
+            nvm_err "\`${NVM_INSTALL_ARG}\` must appear directly after \`nvm install\`, before the version"
+            return 6
+          ;;
         esac
       done
 
@@ -5273,6 +5282,33 @@ nvm() {
           ;;
           --skip-default-packages)
             SKIP_DEFAULT_PACKAGES=true
+          ;;
+          --no-progress)
+            noprogress=1
+          ;;
+          --latest-npm)
+            NVM_UPGRADE_NPM=1
+          ;;
+          --default)
+            if [ -n "${ALIAS-}" ]; then
+              nvm_err '--default and --alias are mutually exclusive, and may not be provided more than once'
+              return 6
+            fi
+            ALIAS='default'
+          ;;
+          --alias=*)
+            if [ -n "${ALIAS-}" ]; then
+              nvm_err '--default and --alias are mutually exclusive, and may not be provided more than once'
+              return 6
+            fi
+            ALIAS="${1##--alias=}"
+          ;;
+          --save | -w)
+            if [ $NVM_WRITE_TO_NVMRC -eq 1 ]; then
+              nvm_err '--save and -w may only be provided once'
+              return 6
+            fi
+            NVM_WRITE_TO_NVMRC=1
           ;;
           --only=*) ;;
           *)

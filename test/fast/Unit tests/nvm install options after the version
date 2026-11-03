@@ -1,0 +1,107 @@
+#!/bin/sh
+
+cleanup() {
+  [ -n "${NVM_DIR}" ] && [ -d "${NVM_DIR}" ] && rm -rf "${NVM_DIR}"
+  rm -f .nvmrc
+  if [ -f .nvmrc.orig ]; then mv .nvmrc.orig .nvmrc; fi
+  unset -f die cleanup reset nvm_remote_version nvm_has_executable nvm_binary_available \
+    nvm_get_make_jobs nvm_install_binary nvm_install_source nvm_install_npm_if_needed \
+    nvm_install_default_packages nvm_install_latest_npm
+  unset NVM_DIR version LOG RESOLVED OUTPUT EXIT_CODE OPTION
+}
+
+die() { echo "$@" ; cleanup ; exit 1; }
+
+: nvm.sh
+\. ../../../nvm.sh
+
+\. ../../common.sh
+
+unset npm_config_prefix NPM_CONFIG_PREFIX
+
+if [ -f .nvmrc ]; then mv .nvmrc .nvmrc.orig; fi
+
+NVM_DIR="$(mktemp -d)"
+[ -n "${NVM_DIR}" ] || die 'unable to create temp NVM_DIR'
+version='v20.0.0'
+LOG="${NVM_DIR}/log"
+RESOLVED="${NVM_DIR}/resolved"
+
+# Stay offline: both install methods create a fake node and record what they got.
+nvm_remote_version() { command touch "${RESOLVED}"; nvm_echo "${version}"; }
+nvm_has_executable() { return 0; }
+nvm_binary_available() { return 0; }
+nvm_get_make_jobs() { NVM_MAKE_JOBS=1; }
+nvm_install_binary() {
+  if [ "${NVM_NO_PROGRESS-}" = 1 ]; then
+    nvm_echo 'binary --no-progress' >> "${LOG}"
+  else
+    nvm_echo 'binary' >> "${LOG}"
+  fi
+  make_fake_node "${version}"
+}
+nvm_install_source() { nvm_echo "source [${5-}]" >> "${LOG}"; make_fake_node "${version}"; }
+nvm_install_npm_if_needed() { return 0; }
+nvm_install_default_packages() { :; }
+nvm_install_latest_npm() { nvm_echo 'latest-npm' >> "${LOG}"; }
+
+reset() {
+  rm -rf "${NVM_DIR:?}/versions" "${NVM_DIR}/alias" "${LOG}" "${RESOLVED}" .nvmrc
+}
+
+# nvm's own options are not passed to `./configure`, and are honoured
+reset
+nvm install -s "${version}" --latest-npm > /dev/null 2>&1 || die "\`nvm install -s ${version} --latest-npm\` failed"
+OUTPUT="$(cat "${LOG}")"
+[ "${OUTPUT}" = "$(printf 'source []\nlatest-npm')" ] || die "expected an empty configure string and an npm upgrade, got >${OUTPUT}<"
+
+# other options are still passed to `./configure`
+reset
+nvm install -s "${version}" --with-intl=full-icu > /dev/null 2>&1 || die "\`nvm install -s ${version} --with-intl=full-icu\` failed"
+OUTPUT="$(cat "${LOG}")"
+[ "${OUTPUT}" = 'source [ --with-intl=full-icu]' ] || die "expected the configure option to be kept, got >${OUTPUT}<"
+
+reset
+nvm install "${version}" --latest-npm > /dev/null 2>&1 || die "\`nvm install ${version} --latest-npm\` failed"
+OUTPUT="$(cat "${LOG}")"
+[ "${OUTPUT}" = "$(printf 'binary\nlatest-npm')" ] || die "expected \`--latest-npm\` after the version to upgrade npm, got >${OUTPUT}<"
+
+reset
+nvm install "${version}" --no-progress > /dev/null 2>&1 || die "\`nvm install ${version} --no-progress\` failed"
+OUTPUT="$(cat "${LOG}")"
+[ "${OUTPUT}" = 'binary --no-progress' ] || die "expected \`--no-progress\` after the version to reach the download, got >${OUTPUT}<"
+
+reset
+nvm install "${version}" --alias=foo > /dev/null 2>&1 || die "\`nvm install ${version} --alias=foo\` failed"
+OUTPUT="$(nvm_alias foo)"
+[ "${OUTPUT}" = "${version}" ] || die "expected \`--alias=foo\` after the version to set the alias, got >${OUTPUT}<"
+
+reset
+nvm alias default v18.0.0 > /dev/null 2>&1
+nvm install "${version}" --default > /dev/null 2>&1 || die "\`nvm install ${version} --default\` failed"
+OUTPUT="$(nvm_alias default)"
+[ "${OUTPUT}" = "${version}" ] || die "expected \`--default\` after the version to set the default alias, got >${OUTPUT}<"
+
+reset
+nvm install "${version}" --save > /dev/null 2>&1 || die "\`nvm install ${version} --save\` failed"
+OUTPUT="$(cat .nvmrc 2> /dev/null)"
+[ "${OUTPUT}" = "${version}" ] || die "expected \`--save\` after the version to write .nvmrc, got >${OUTPUT}<"
+
+# options that are checked, or used to find the version, must come before it
+for OPTION in -s -b -j --offline --lts --lts=iron; do
+  reset
+  OUTPUT="$(nvm install "${version}" "${OPTION}" 2>&1)"; EXIT_CODE=$?
+  [ "${EXIT_CODE}" = '6' ] || die "expected exit code 6 for \`nvm install ${version} ${OPTION}\`, got ${EXIT_CODE}"
+  [ "${OUTPUT}" = "\`${OPTION}\` must appear directly after \`nvm install\`, before the version" ] || die "unexpected error for \`${OPTION}\`: >${OUTPUT}<"
+  [ ! -f "${RESOLVED}" ] || die "\`nvm install ${version} ${OPTION}\` should fail before resolving the version"
+  [ ! -f "${LOG}" ] || die "\`nvm install ${version} ${OPTION}\` should not install anything"
+done
+
+# a `---` typo is rejected after the version too, instead of reaching `./configure`
+reset
+OUTPUT="$(nvm install -s "${version}" ---with-intl=full-icu 2>&1)"; EXIT_CODE=$?
+[ "${EXIT_CODE}" = '55' ] || die "expected exit code 55 for a \`---\` option after the version, got ${EXIT_CODE}"
+[ "${OUTPUT}" = 'arguments with `---` are not supported - this is likely a typo' ] || die "unexpected error for a \`---\` option: >${OUTPUT}<"
+[ ! -f "${LOG}" ] || die 'a `---` option after the version should not install anything'
+
+cleanup
