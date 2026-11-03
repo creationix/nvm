@@ -3292,28 +3292,41 @@ nvm_print_implicit_alias() {
       LAST_TWO=$($NVM_COMMAND | nvm_grep -e '^v' | command cut -c2- | command cut -d . -f 1,2 | uniq)
     ;;
   esac
-  local MINOR
   local STABLE
   STABLE=''
   local UNSTABLE
   UNSTABLE=''
-  local MOD
-  local NORMALIZED_VERSION
-
-  nvm_is_zsh && setopt local_options shwordsplit
-  for MINOR in $LAST_TWO; do
-    NORMALIZED_VERSION="$(nvm_normalize_version "$MINOR")"
-    if [ "_0${NORMALIZED_VERSION#?}" != "_$NORMALIZED_VERSION" ]; then
-      STABLE="$MINOR"
+  local NVM_CLASSIFIED
+  NVM_CLASSIFIED=''
+  if [ -n "${LAST_TWO}" ]; then
+    NVM_CLASSIFIED=$(command awk -v requested="$2" '
+    NF {
+      split($0, parts, /\./);
+      normalized = sprintf("%d%06d%06d", parts[1], parts[2], parts[3]);
+      if (substr(normalized, 1, 1) != "0") {
+        stable = $0;
+      } else {
+        parity = int(normalized / 1000000) % 2;
+        if (parity == 0) { stable = $0; }
+        else if (parity == 1) { unstable = $0; }
+      }
+    }
+    END {
+      selected = requested == "stable" ? stable : unstable;
+      if (selected != "") { print "v" selected; }
+    }
+  ' <<EOF
+${LAST_TWO}
+EOF
+    )
+  fi
+  if [ -n "${NVM_CLASSIFIED}" ]; then
+    if [ "_$2" = '_stable' ]; then
+      STABLE="${NVM_CLASSIFIED#v}"
     else
-      MOD="$(awk 'BEGIN { print int(ARGV[1] / 1000000) % 2 ; exit(0) }' "${NORMALIZED_VERSION}")"
-      if [ "${MOD}" -eq 0 ]; then
-        STABLE="${MINOR}"
-      elif [ "${MOD}" -eq 1 ]; then
-        UNSTABLE="${MINOR}"
-      fi
+      UNSTABLE="${NVM_CLASSIFIED#v}"
     fi
-  done
+  fi
 
   if [ "_$2" = '_stable' ]; then
     nvm_echo "${STABLE}"

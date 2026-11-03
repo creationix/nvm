@@ -1,0 +1,56 @@
+#!/bin/sh
+
+die () { echo "$@"; exit 1; }
+\. ../../../nvm.sh --no-use
+
+nvm_ls() { printf '%s\n' "${VERSIONS}"; }
+nvm_ls_remote() { printf '%s\n' "${VERSIONS}"; }
+
+VERSIONS='v0.2.3
+v0.3.4
+v0.4.6
+v0.5.7
+v1.0.0
+v1.1.0
+v20.9.1
+v20.9.2'
+for MODE in local remote; do
+  [ "$(nvm_print_implicit_alias "${MODE}" stable)" = '20.9' ] || die "${MODE} stable"
+  [ "$(nvm_print_implicit_alias "${MODE}" unstable)" = '0.5' ] || die "${MODE} unstable"
+done
+VERSIONS='v0.1.0
+v0.3.1'
+[ -z "$(nvm_print_implicit_alias local stable)" ] || die 'odd-only stable'
+[ "$(nvm_print_implicit_alias local unstable)" = '0.3' ] || die 'odd-only unstable'
+VERSIONS='v0.2.0
+v0.4.1'
+[ "$(nvm_print_implicit_alias local stable)" = '0.4' ] || die 'even-only stable'
+[ "$(nvm_print_implicit_alias local unstable)" = 'N/A' ] || die 'even-only unstable'
+VERSIONS=''
+[ -z "$(nvm_print_implicit_alias local stable)" ] || die 'empty stable'
+[ "$(nvm_print_implicit_alias local unstable)" = 'N/A' ] || die 'empty unstable'
+
+# Count actual awk launches, without timing-dependent assertions or provider calls.
+COUNT_DIR=$(mktemp -d) || die 'temporary directory'
+trap 'rm -f "${COUNT_DIR}/awk" "${COUNT_DIR}/calls"; rmdir "${COUNT_DIR}"' EXIT HUP INT TERM
+REAL_AWK=$(command -v awk)
+export REAL_AWK COUNT_DIR
+printf '%s\n' '#!/bin/sh' 'echo called >> "${COUNT_DIR}/calls"' 'exec "${REAL_AWK}" "$@"' > "${COUNT_DIR}/awk"
+chmod +x "${COUNT_DIR}/awk"
+VERSIONS='v1.0.1
+v1.1.1
+v1.2.1
+v1.3.1
+v1.4.1
+v1.5.1'
+RESULT=$(PATH="${COUNT_DIR}:${PATH}" nvm_print_implicit_alias local stable)
+[ "${RESULT}" = '1.5' ] || die 'latest minor classification'
+CALLS=$(wc -l < "${COUNT_DIR}/calls")
+[ "${CALLS}" -le 1 ] || die "classification launched ${CALLS} awk processes for six minors"
+
+VERSIONS=''
+: > "${COUNT_DIR}/calls"
+RESULT=$(PATH="${COUNT_DIR}:${PATH}" nvm_print_implicit_alias local unstable)
+[ "${RESULT}" = 'N/A' ] || die 'empty unstable classification'
+CALLS=$(wc -l < "${COUNT_DIR}/calls")
+[ "${CALLS}" -eq 0 ] || die "empty classification launched ${CALLS} awk processes"
