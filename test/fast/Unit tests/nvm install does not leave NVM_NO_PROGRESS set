@@ -1,0 +1,56 @@
+#!/bin/sh
+
+cleanup() {
+  [ -n "${NVM_DIR-}" ] && [ -d "${NVM_DIR}" ] && rm -rf "${NVM_DIR}"
+  unset -f die cleanup reset nvm_remote_version nvm_has_executable nvm_binary_available \
+    nvm_install_binary nvm_install_npm_if_needed nvm_install_default_packages
+  unset NVM_DIR NVM_NO_PROGRESS version LOG
+}
+
+die() { echo "$@" ; cleanup ; exit 1; }
+
+: nvm.sh
+\. ../../../nvm.sh
+
+\. ../../common.sh
+
+unset npm_config_prefix NPM_CONFIG_PREFIX NVM_NO_PROGRESS
+
+NVM_DIR="$(mktemp -d)"
+[ -n "${NVM_DIR}" ] || die 'unable to create temp NVM_DIR'
+version='v20.0.0'
+LOG="${NVM_DIR}/log"
+
+# Stay offline, and record the progress setting each download would see.
+nvm_remote_version() { nvm_echo "${version}"; }
+nvm_has_executable() { return 0; }
+nvm_binary_available() { return 0; }
+nvm_install_binary() {
+  nvm_echo "${NVM_NO_PROGRESS-}" > "${LOG}"
+  make_fake_node "${version}"
+}
+nvm_install_npm_if_needed() { return 0; }
+nvm_install_default_packages() { :; }
+
+reset() {
+  rm -rf "${NVM_DIR:?}/versions" "${NVM_DIR}/alias" "${LOG}"
+}
+
+reset
+nvm install "${version}" > /dev/null 2>&1 || die "\`nvm install ${version}\` failed"
+[ "${NVM_NO_PROGRESS-unset}" = 'unset' ] || die "\`nvm install\` left NVM_NO_PROGRESS set to >${NVM_NO_PROGRESS}<"
+
+# so a later `--no-progress` still reaches the download
+reset
+nvm install --no-progress "${version}" > /dev/null 2>&1 || die "\`nvm install --no-progress ${version}\` failed"
+[ "$(cat "${LOG}")" = '1' ] || die "\`--no-progress\` after an earlier install should reach the download; it saw >$(cat "${LOG}")<"
+
+# an exported NVM_NO_PROGRESS still applies
+reset
+NVM_NO_PROGRESS=1
+export NVM_NO_PROGRESS
+nvm install "${version}" > /dev/null 2>&1 || die "\`nvm install ${version}\` with NVM_NO_PROGRESS=1 failed"
+[ "$(cat "${LOG}")" = '1' ] || die "an exported NVM_NO_PROGRESS=1 should reach the download; it saw >$(cat "${LOG}")<"
+[ "${NVM_NO_PROGRESS}" = '1' ] || die "\`nvm install\` changed the exported NVM_NO_PROGRESS to >${NVM_NO_PROGRESS}<"
+
+cleanup

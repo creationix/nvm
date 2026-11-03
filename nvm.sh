@@ -5389,9 +5389,15 @@ nvm() {
           fi
         fi
 
+        # a local, since bash 3.2 in POSIX mode keeps a prefix assignment on a function call after it returns
+        local NVM_INSTALL_NO_PROGRESS
+        NVM_INSTALL_NO_PROGRESS="${NVM_NO_PROGRESS:-${noprogress}}"
+        local NVM_NO_PROGRESS
+        NVM_NO_PROGRESS="${NVM_INSTALL_NO_PROGRESS}"
+
         # skip binary install if "nobinary" option specified.
         if [ $nobinary -ne 1 ] && nvm_binary_available "${VERSION}"; then
-          NVM_NO_PROGRESS="${NVM_NO_PROGRESS:-${noprogress}}" NVM_OFFLINE="${NVM_OFFLINE}" nvm_install_binary "${FLAVOR}" std "${VERSION}" "${nosource}"
+          NVM_OFFLINE="${NVM_OFFLINE}" nvm_install_binary "${FLAVOR}" std "${VERSION}" "${nosource}"
           EXIT_CODE=$?
         else
           EXIT_CODE=-1
@@ -5411,7 +5417,7 @@ nvm() {
             nvm_err 'Installing from source on non-WSL Windows is not supported'
             EXIT_CODE=87
           else
-            NVM_NO_PROGRESS="${NVM_NO_PROGRESS:-${noprogress}}" NVM_OFFLINE="${NVM_OFFLINE}" nvm_install_source "${FLAVOR}" std "${VERSION}" "${NVM_MAKE_JOBS}" "${ADDITIONAL_PARAMETERS}"
+            NVM_OFFLINE="${NVM_OFFLINE}" nvm_install_source "${FLAVOR}" std "${VERSION}" "${NVM_MAKE_JOBS}" "${ADDITIONAL_PARAMETERS}"
             EXIT_CODE=$?
           fi
         fi
