@@ -3680,9 +3680,6 @@ nvm_install_binary() {
   fi
 
   if nvm_install_binary_extract "${NVM_OS}" "${PREFIXED_VERSION}" "${VERSION}" "${TARBALL}" "${TMPDIR}"; then
-    if [ -n "${ALIAS-}" ]; then
-      nvm alias "${ALIAS}" "${provided_version}"
-    fi
     return 0
   fi
 
@@ -5340,7 +5337,12 @@ nvm() {
         fi
 
         if [ $EXIT_CODE -eq 0 ] && [ -n "${ALIAS-}" ]; then
-          nvm alias "${ALIAS}" "${provided_version}"
+          # an LTS install may have no provided version, and an empty target would remove the alias
+          if [ -z "${provided_version}" ] && [ -n "${LTS-}" ]; then
+            nvm alias "${ALIAS}" "lts/${LTS}"
+          else
+            nvm alias "${ALIAS}" "${provided_version}"
+          fi
           EXIT_CODE=$?
         fi
 
@@ -5451,6 +5453,20 @@ nvm() {
         else
           EXIT_CODE=$?
         fi
+      fi
+
+      if [ $EXIT_CODE -eq 0 ] && [ $NVM_WRITE_TO_NVMRC -eq 1 ]; then
+        nvm_write_nvmrc "${VERSION}"
+        EXIT_CODE=$?
+      fi
+
+      if [ $EXIT_CODE -eq 0 ] && [ -n "${ALIAS-}" ]; then
+        if [ -z "${provided_version}" ] && [ -n "${LTS-}" ]; then
+          nvm alias "${ALIAS}" "lts/${LTS}"
+        else
+          nvm alias "${ALIAS}" "${provided_version}"
+        fi
+        EXIT_CODE=$?
       fi
 
       return $EXIT_CODE

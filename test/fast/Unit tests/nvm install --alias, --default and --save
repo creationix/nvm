@@ -1,0 +1,80 @@
+#!/bin/sh
+
+cleanup() {
+  [ -n "${NVM_DIR}" ] && [ -d "${NVM_DIR}" ] && rm -rf "${NVM_DIR}"
+  rm -f .nvmrc
+  if [ -f .nvmrc.orig ]; then mv .nvmrc.orig .nvmrc; fi
+  unset -f die cleanup reset nvm_remote_version nvm_has_executable nvm_binary_available \
+    nvm_get_make_jobs nvm_install_binary nvm_install_source nvm_install_npm_if_needed \
+    nvm_install_default_packages
+  unset NVM_DIR version OUTPUT
+}
+
+die() { echo "$@" ; cleanup ; exit 1; }
+
+: nvm.sh
+\. ../../../nvm.sh
+
+\. ../../common.sh
+
+unset npm_config_prefix NPM_CONFIG_PREFIX
+
+if [ -f .nvmrc ]; then mv .nvmrc .nvmrc.orig; fi
+
+NVM_DIR="$(mktemp -d)"
+[ -n "${NVM_DIR}" ] || die 'unable to create temp NVM_DIR'
+version='v20.0.0'
+
+# Stay offline: both install methods create a fake node.
+nvm_remote_version() { nvm_echo "${version}"; }
+nvm_has_executable() { return 0; }
+nvm_binary_available() { return 0; }
+nvm_get_make_jobs() { NVM_MAKE_JOBS=1; }
+nvm_install_binary() { make_fake_node "${version}"; }
+nvm_install_source() { make_fake_node "${version}"; }
+nvm_install_npm_if_needed() { return 0; }
+nvm_install_default_packages() { :; }
+
+reset() {
+  rm -rf "${NVM_DIR:?}/versions" "${NVM_DIR}/alias" .nvmrc
+}
+
+reset
+nvm install -s --alias=foo "${version}" > /dev/null 2>&1 || die "\`nvm install -s --alias=foo ${version}\` failed"
+OUTPUT="$(nvm_alias foo)"
+[ "${OUTPUT}" = "${version}" ] || die "expected the foo alias to be ${version} after a source install, got >${OUTPUT}<"
+
+reset
+nvm install --alias=foo "${version}" > /dev/null 2>&1 || die "\`nvm install --alias=foo ${version}\` failed"
+OUTPUT="$(nvm_alias foo)"
+[ "${OUTPUT}" = "${version}" ] || die "expected the foo alias to be ${version} after a binary install, got >${OUTPUT}<"
+
+reset
+nvm alias default v18.0.0 > /dev/null 2>&1
+nvm install -s --default "${version}" > /dev/null 2>&1 || die "\`nvm install -s --default ${version}\` failed"
+OUTPUT="$(nvm_alias default)"
+[ "${OUTPUT}" = "${version}" ] || die "expected the default alias to be ${version} after a source install, got >${OUTPUT}<"
+
+reset
+nvm alias default v18.0.0 > /dev/null 2>&1
+nvm install -s --lts --default > /dev/null 2>&1 || die '`nvm install -s --lts --default` failed'
+OUTPUT="$(nvm_alias default)"
+[ "${OUTPUT}" = 'lts/*' ] || die "expected the default alias to be lts/* after an LTS install, got >${OUTPUT}<"
+
+# again, now that the version is installed
+nvm install -s --lts --default > /dev/null 2>&1 || die '`nvm install -s --lts --default` failed for an installed version'
+OUTPUT="$(nvm_alias default)"
+[ "${OUTPUT}" = 'lts/*' ] || die "expected the default alias to stay lts/* for an installed version, got >${OUTPUT}<"
+
+# with `--lts` and an explicit version, the alias points at that version
+reset
+nvm install -s --lts --default "${version}" > /dev/null 2>&1 || die "\`nvm install -s --lts --default ${version}\` failed"
+OUTPUT="$(nvm_alias default)"
+[ "${OUTPUT}" = "${version}" ] || die "expected the default alias to be ${version} for \`--lts ${version}\`, got >${OUTPUT}<"
+
+reset
+nvm install --save "${version}" > /dev/null 2>&1 || die "\`nvm install --save ${version}\` failed"
+OUTPUT="$(cat .nvmrc 2> /dev/null)"
+[ "${OUTPUT}" = "${version}" ] || die "expected \`nvm install --save ${version}\` to write .nvmrc, got >${OUTPUT}<"
+
+cleanup
