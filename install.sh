@@ -45,7 +45,7 @@ nvm_install_dir() {
 }
 
 nvm_latest_version() {
-  nvm_echo "v0.40.8"
+  nvm_echo "v0.41.0"
 }
 
 nvm_profile_has_line() {
