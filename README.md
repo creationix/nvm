@@ -814,7 +814,9 @@ cdnvm() {
         fi
     elif [[ -s "${nvm_path}/.nvmrc" && -r "${nvm_path}/.nvmrc" ]]; then
         declare nvm_version
-        nvm_version=$(<"${nvm_path}"/.nvmrc)
+        # Let nvm parse `.nvmrc`, so that comments are ignored and the content of an invalid
+        # or symlinked `.nvmrc` is not passed along to other nvm commands, which may print it
+        nvm_version="$(nvm_process_nvmrc "${nvm_path}/.nvmrc")" || return
 
         declare locally_resolved_nvm_version
         # `nvm ls` will check all locally-available versions
