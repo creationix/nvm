@@ -8,15 +8,18 @@ die () { echo "$@" ; exit 1; }
 \. ../../common.sh
 
 # Test that mkdir failure propagates from brace group (not subshell)
+# a path under a regular file can not be created, even by root
+NOT_A_DIR="$(mktemp)"
 nvm_download_artifact_mkdir_test() {
   local tmpdir
-  tmpdir="/nonexistent/path/that/cannot/exist"
+  tmpdir="${NOT_A_DIR}/path"
   command mkdir -p "${tmpdir}/files" || {
     return 3
   }
 }
 nvm_download_artifact_mkdir_test 2>/dev/null
 EXIT_CODE=$?
+command rm -f "${NOT_A_DIR}"
 [ "${EXIT_CODE}" = "3" ] || die "Expected mkdir failure to propagate with exit code 3, got ${EXIT_CODE}"
 
 # Test that download failure propagates with exit code 4

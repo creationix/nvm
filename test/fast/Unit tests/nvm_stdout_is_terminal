@@ -26,8 +26,13 @@ fi
 [ "$(nvm_stdout_is_terminal; echo $?)" = "1" ] || die 'nvm_stdout_is_terminal should be false in command substitution'
 
 # also test the 'true' case while running on CI or similar environments
-nvm_stdout_is_terminal >/dev/tty || die 'nvm_stdout_is_terminal should be true when stdout goes to /dev/tty'
-nvm_stdout_is_terminal >/dev/tty 2>/dev/null || die 'nvm_stdout_is_terminal should be true when stdout goes to /dev/tty and stderr is redirected'
-nvm_stdout_is_terminal >/dev/tty </dev/null || die 'nvm_stdout_is_terminal should be true when stdout goes to /dev/tty and stdin is redirected'
+# (a process without a controlling terminal, eg in `docker run` without `-t`, can not open /dev/tty)
+if (: >/dev/tty) 2>/dev/null; then
+  nvm_stdout_is_terminal >/dev/tty || die 'nvm_stdout_is_terminal should be true when stdout goes to /dev/tty'
+  nvm_stdout_is_terminal >/dev/tty 2>/dev/null || die 'nvm_stdout_is_terminal should be true when stdout goes to /dev/tty and stderr is redirected'
+  nvm_stdout_is_terminal >/dev/tty </dev/null || die 'nvm_stdout_is_terminal should be true when stdout goes to /dev/tty and stdin is redirected'
+else
+  echo 'no controlling terminal; skipping /dev/tty checks'
+fi
 
 cleanup

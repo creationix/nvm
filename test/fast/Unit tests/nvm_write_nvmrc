@@ -66,12 +66,14 @@ del_alias
 nvm alias test "$TEST_VERSION"
 test_version test || die
 
-# 3. fails with invalid permissions
-del_nvmrc
-touch .nvmrc
-chmod 0 .nvmrc
-nvm_write_nvmrc $TEST_VERSION 2>/dev/null && die "\`nvm_write_nvmrc $TEST_VERSION\` did not fail with invalid permissions"
-del_nvmrc
+# 3. fails with invalid permissions (root ignores file permissions, so this can only be checked as another user)
+if [ "$(command id -u)" != '0' ]; then
+  del_nvmrc
+  touch .nvmrc
+  chmod 0 .nvmrc
+  nvm_write_nvmrc $TEST_VERSION 2>/dev/null && die "\`nvm_write_nvmrc $TEST_VERSION\` did not fail with invalid permissions"
+  del_nvmrc
+fi
 
 # 4. respects NVM_SILENT=1
 export NVM_SILENT=1

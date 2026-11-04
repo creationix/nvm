@@ -11,8 +11,10 @@ cleanup() {
 
 \. ../../common.sh
 
+[ -d ../../../test/fixtures/nvmrc/test/fixtures/valid ] || die 'the `test/fixtures/nvmrc` submodule is not checked out; run `git submodule update --init`'
+
 for f in ../../../test/fixtures/nvmrc/test/fixtures/valid/*; do
-  try nvm_process_nvmrc $f/.nvmrc
+  try nvm_process_nvmrc "${f}/.nvmrc"
 
   EXPECTED="$(nvm_json_extract node < "${f}/expected.json" | tr -d '"')"
 
@@ -22,8 +24,8 @@ for f in ../../../test/fixtures/nvmrc/test/fixtures/valid/*; do
 done
 
 for f in ../../../test/fixtures/nvmrc/test/fixtures/invalid/*; do
-  try nvm_process_nvmrc $f/.nvmrc
-  try_err nvm_process_nvmrc $f/.nvmrc
+  try nvm_process_nvmrc "${f}/.nvmrc"
+  try_err nvm_process_nvmrc "${f}/.nvmrc"
   STDERR="$(echo "$CAPTURED_STDERR" | awk '{if(NR > 8) print $0}' | strip_colors)"
 
   EXPECTED="$(nvm_json_extract < "${f}/expected.json" | tr -d '"')"

@@ -54,7 +54,15 @@ setup_chroot() {
   cp /lib64/ld-linux-x86-64.so.2 "${chroot_dir}/lib64/"
 
   # /dev/null
-  sudo mknod "${chroot_dir}/dev/null" c 1 3
+  as_root mknod "${chroot_dir}/dev/null" c 1 3
+}
+
+as_root() {
+  if [ "$(command id -u)" = '0' ]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
 }
 
 # The chroot fixtures assume a glibc layout (fixed dynamic-linker path under
@@ -65,15 +73,17 @@ if [ -f "/etc/alpine-release" ]; then
   echo "on Alpine; skipping chroot arch checks (covered by 'nvm_get_arch alpine')"
 elif [ "$(command uname -s)" != 'Linux' ] || [ "$(command uname -m)" != 'x86_64' ] || [ ! -e /lib64/ld-linux-x86-64.so.2 ]; then
   echo "not on x86_64 glibc Linux; skipping chroot arch checks"
+elif [ "$(command id -u)" != '0' ] && ! command -v sudo >/dev/null 2>&1; then
+  echo "not root and no sudo, so chroot is unavailable; skipping chroot arch checks"
 else
   setup_chroot "${CHROOT_WITH_ALPINE}"
   setup_chroot "${CHROOT_WITHOUT_ALPINE}"
 
   # Run tests in chroot environments
-  ARCH_WITH_ALPINE=$(sudo chroot "${CHROOT_WITH_ALPINE}" /bin/sh -c "export NVM_DIR=/ && . ./nvm.sh && nvm_get_arch")
+  ARCH_WITH_ALPINE=$(as_root chroot "${CHROOT_WITH_ALPINE}" /bin/sh -c "export NVM_DIR=/ && . ./nvm.sh && nvm_get_arch")
   [ "${ARCH_WITH_ALPINE}" = "x64-musl" ] || die "Expected x64-musl for alpine environment but got ${ARCH_WITH_ALPINE}"
 
-  ARCH_WITHOUT_ALPINE=$(sudo chroot "${CHROOT_WITHOUT_ALPINE}" /bin/sh -c "export NVM_DIR=/ && . ./nvm.sh && nvm_get_arch")
+  ARCH_WITHOUT_ALPINE=$(as_root chroot "${CHROOT_WITHOUT_ALPINE}" /bin/sh -c "export NVM_DIR=/ && . ./nvm.sh && nvm_get_arch")
   [ "${ARCH_WITHOUT_ALPINE}" != "x64-musl" ] || die "Did not expect x64-musl for non-alpine environment"
 fi
 
