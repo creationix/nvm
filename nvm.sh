@@ -2497,9 +2497,6 @@ nvm_ls() {
       ;;
     esac
 
-    nvm_is_zsh && setopt local_options shwordsplit
-    nvm_is_zsh && setopt local_options nomarkdirs
-
     local NVM_DIRS_TO_SEARCH1
     NVM_DIRS_TO_SEARCH1=''
     local NVM_DIRS_TO_SEARCH2
@@ -2559,7 +2556,14 @@ nvm_ls() {
       NVM_DIR_SED="$(nvm_echo "${NVM_DIR}" | command sed 's/[][\.*^$#]/\\&/g')"
       local NVM_VERSION_DIR_IOJS_SED
       NVM_VERSION_DIR_IOJS_SED="$(nvm_echo "${NVM_VERSION_DIR_IOJS}" | command sed 's/[][\.*^$#]/\\&/g')"
-      VERSIONS="$(command find -L "${NVM_DIRS_TO_SEARCH1}"/* "${NVM_DIRS_TO_SEARCH2}"/* "${NVM_DIRS_TO_SEARCH3}"/* -name . -o -type d -prune -o -path "${PATTERN}*" \
+      local NVM_FIND_DIR
+      set --
+      for NVM_FIND_DIR in "${NVM_DIRS_TO_SEARCH1}" "${NVM_DIRS_TO_SEARCH2}" "${NVM_DIRS_TO_SEARCH3}"; do
+        if [ -n "${NVM_FIND_DIR}" ]; then
+          set -- "$@" "${NVM_FIND_DIR}"
+        fi
+      done
+      VERSIONS="$(command find -L "$@" -mindepth 1 -maxdepth 1 -type d \
         | command sed -e "
             s#${NVM_VERSION_DIR_IOJS_SED}/#versions/${NVM_IOJS_PREFIX}/#;
             s#^${NVM_DIR_SED}/##;
