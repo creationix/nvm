@@ -1190,8 +1190,9 @@ nvm_ensure_version_installed() {
     if nvm_explain_excluded_version "${PROVIDED_VERSION}"; then
       return 1
     fi
-    if VERSION="$(nvm_resolve_alias "${PROVIDED_VERSION}")"; then
-      nvm_err "N/A: version \"${PROVIDED_VERSION} -> ${VERSION}\" is not yet installed."
+    local NVM_RESOLVED_VERSION
+    if NVM_RESOLVED_VERSION="$(nvm_resolve_alias "${PROVIDED_VERSION}")"; then
+      nvm_err "N/A: version \"${PROVIDED_VERSION} -> ${NVM_RESOLVED_VERSION}\" is not yet installed."
     else
       local PREFIXED_VERSION
       PREFIXED_VERSION="$(nvm_ensure_version_prefix "${PROVIDED_VERSION}")"
